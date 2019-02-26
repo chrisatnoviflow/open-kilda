@@ -17,6 +17,9 @@ package org.openkilda.wfm.topology.reroute.bolts;
 
 import org.openkilda.messaging.command.CommandMessage;
 import org.openkilda.messaging.command.flow.FlowRerouteRequest;
+import org.openkilda.model.FeatureToggles;
+import org.openkilda.persistence.PersistenceManager;
+import org.openkilda.persistence.repositories.FeatureTogglesRepository;
 import org.openkilda.wfm.topology.reroute.model.FlowThrottlingData;
 import org.openkilda.wfm.topology.reroute.service.ReroutesThrottling;
 import org.openkilda.wfm.topology.utils.AbstractTickStatefulBolt;
@@ -34,13 +37,22 @@ public class FlowThrottlingBolt extends AbstractTickStatefulBolt<InMemoryKeyValu
 
     private static final String REROUTES_THROTTLING = "reroutes-throttling";
 
+    public static final String STREAM_FLOW_ID = "flow";
+    public static final String STREAM_FLOWHS_ID = "flowhs";
+
+    private final PersistenceManager persistenceManager;
+    private FeatureTogglesRepository featureTogglesRepository;
+
     private final long minDelay;
     private final long maxDelay;
     private final int defaultFlowPriority;
 
     private transient ReroutesThrottling reroutesThrottling;
 
-    public FlowThrottlingBolt(long minDelay, long maxDelay, int defaultFlowPriority) {
+    public FlowThrottlingBolt(PersistenceManager persistenceManager,
+                              long minDelay, long maxDelay, int defaultFlowPriority) {
+        this.persistenceManager = persistenceManager;
+
         this.minDelay = minDelay;
         this.maxDelay = maxDelay;
         this.defaultFlowPriority = defaultFlowPriority;
@@ -48,12 +60,19 @@ public class FlowThrottlingBolt extends AbstractTickStatefulBolt<InMemoryKeyValu
 
     @Override
     protected void doTick(Tuple tuple) {
-        for (Map.Entry<String, FlowThrottlingData> entry: reroutesThrottling.getReroutes()) {
+        for (Map.Entry<String, FlowThrottlingData> entry : reroutesThrottling.getReroutes()) {
             String flowId = entry.getKey();
+
+            boolean flowsRerouteViaFlowHs = featureTogglesRepository.find()
+                    .map(FeatureToggles::getFlowsRerouteViaFlowHs)
+                    .orElse(FeatureToggles.DEFAULTS.getFlowsRerouteViaFlowHs());
+
             FlowThrottlingData throttlingData = entry.getValue();
             FlowRerouteRequest request = new FlowRerouteRequest(flowId);
-            outputCollector.emit(tuple, new Values(throttlingData.getCorrelationId(),
-                    new CommandMessage(request, System.currentTimeMillis(), throttlingData.getCorrelationId())));
+            outputCollector.emit(flowsRerouteViaFlowHs ? STREAM_FLOWHS_ID : STREAM_FLOW_ID,
+                    tuple, new Values(throttlingData.getCorrelationId(),
+                            new CommandMessage(request, System.currentTimeMillis(),
+                                    throttlingData.getCorrelationId())));
         }
         outputCollector.ack(tuple);
     }
@@ -68,7 +87,10 @@ public class FlowThrottlingBolt extends AbstractTickStatefulBolt<InMemoryKeyValu
 
     @Override
     public void declareOutputFields(OutputFieldsDeclarer outputFieldsDeclarer) {
-        outputFieldsDeclarer.declare(new Fields(MessageTranslator.KEY_FIELD, MessageTranslator.FIELD_ID_PAYLOAD));
+        outputFieldsDeclarer.declareStream(STREAM_FLOW_ID,
+                new Fields(MessageTranslator.KEY_FIELD, MessageTranslator.FIELD_ID_PAYLOAD));
+        outputFieldsDeclarer.declareStream(STREAM_FLOWHS_ID,
+                new Fields(MessageTranslator.KEY_FIELD, MessageTranslator.FIELD_ID_PAYLOAD));
     }
 
     @Override
@@ -78,5 +100,7 @@ public class FlowThrottlingBolt extends AbstractTickStatefulBolt<InMemoryKeyValu
             reroutesThrottling = new ReroutesThrottling(minDelay, maxDelay, defaultFlowPriority);
             state.put(REROUTES_THROTTLING, reroutesThrottling);
         }
+
+        featureTogglesRepository = persistenceManager.getRepositoryFactory().createFeatureTogglesRepository();
     }
 }

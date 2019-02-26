@@ -17,6 +17,7 @@ package org.openkilda.wfm.topology.flowhs.bolts;
 
 import static java.lang.String.format;
 import static org.openkilda.wfm.topology.flowhs.FlowHsTopology.Stream.ROUTER_TO_FLOW_CREATE_HUB;
+import static org.openkilda.wfm.topology.flowhs.FlowHsTopology.Stream.ROUTER_TO_FLOW_REROUTE_HUB;
 
 import org.openkilda.messaging.MessageData;
 import org.openkilda.messaging.command.CommandMessage;
@@ -55,6 +56,10 @@ public class RouterBolt extends AbstractBolt {
             case CREATE:
                 emitWithContext(ROUTER_TO_FLOW_CREATE_HUB.name(), input, new Values(key, request.getPayload()));
                 break;
+            case REROUTE:
+                emitWithContext(ROUTER_TO_FLOW_REROUTE_HUB.name(), input,
+                        new Values(key, request.getPayload().getFlowId()));
+                break;
             default:
                 throw new UnsupportedOperationException(format("Flow operation %s is not supported",
                         request.getType()));
@@ -64,5 +69,6 @@ public class RouterBolt extends AbstractBolt {
     @Override
     public void declareOutputFields(OutputFieldsDeclarer declarer) {
         declarer.declareStream(ROUTER_TO_FLOW_CREATE_HUB.name(), MessageTranslator.STREAM_FIELDS);
+        declarer.declareStream(ROUTER_TO_FLOW_REROUTE_HUB.name(), MessageTranslator.STREAM_FIELDS);
     }
 }

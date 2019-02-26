@@ -18,6 +18,7 @@ package org.openkilda.wfm.topology.flowhs.fsm;
 import org.openkilda.messaging.Message;
 import org.openkilda.messaging.error.ErrorData;
 import org.openkilda.messaging.error.ErrorMessage;
+import org.openkilda.messaging.error.ErrorType;
 import org.openkilda.wfm.CommandContext;
 import org.openkilda.wfm.topology.flowhs.exception.FlowProcessingException;
 
@@ -34,17 +35,20 @@ public abstract class NbTrackableAction<T extends NbTrackableStateMachine<T, S, 
             Optional<Message> message = perform(from, to, event, context, stateMachine);
             if (message.isPresent()) {
                 stateMachine.sendResponse(message.get());
-            } else {
-                stateMachine.fireNext(context);
             }
         } catch (FlowProcessingException e) {
-            CommandContext commandContext = stateMachine.getCommandContext();
-            ErrorData error = new ErrorData(e.getErrorType(), e.getErrorMessage(), e.getErrorDescription());
-            Message message = new ErrorMessage(error, commandContext.getCreateTime(),
-                    commandContext.getCorrelationId());
+            Message message =
+                    buildErrorMessage(stateMachine, e.getErrorType(), e.getErrorMessage(), e.getErrorDescription());
             stateMachine.sendResponse(message);
             stateMachine.fireError();
         }
+    }
+
+    protected Message buildErrorMessage(T stateMachine, ErrorType errorType,
+                                        String errorMessage, String errorDescription) {
+        CommandContext commandContext = stateMachine.getCommandContext();
+        ErrorData error = new ErrorData(errorType, errorMessage, errorDescription);
+        return new ErrorMessage(error, commandContext.getCreateTime(), commandContext.getCorrelationId());
     }
 
     protected abstract Optional<Message> perform(S from, S to, E event, C context, T stateMachine)
