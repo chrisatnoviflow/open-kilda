@@ -314,6 +314,14 @@ public class DatabaseSupportImpl implements Database {
         flowRepository.createOrUpdate(flowPair);
     }
 
+    @Override
+    public boolean updateFlowMeterId(String flowId, int newMeterId) {
+        Session session = ((Neo4jSessionFactory) transactionManager).getSession();
+        String query = "MATCH ()-[n:flow]->() where n.flowid = $flowId set n.meter_id = $newMeterId";
+        Result result = session.query(query, ImmutableMap.of("flowId", flowId, "newMeterId", newMeterId));
+        return result.queryStatistics().getPropertiesSet() > 0;
+    }
+
     private FlowDto convert(Flow flow) {
         return flowMapper.map(flow);
     }

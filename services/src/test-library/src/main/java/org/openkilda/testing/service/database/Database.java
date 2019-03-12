@@ -54,4 +54,6 @@ public interface Database {
     FlowPairDto<FlowDto, FlowDto> getFlow(String flowId);
 
     void updateFlowBandwidth(String flowId, long newBw);
+
+    boolean updateFlowMeterId(String flowId, int newMeterId);
 }
