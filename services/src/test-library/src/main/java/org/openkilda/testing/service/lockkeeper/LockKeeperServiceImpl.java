@@ -92,18 +92,6 @@ public class LockKeeperServiceImpl implements LockKeeperService {
     }
 
     @Override
-    public void knockoutSwitch(SwitchId switchId) {
-        throw new UnsupportedOperationException(
-                "knockoutSwitch operation for a-switch is not available on hardware env");
-    }
-
-    @Override
-    public void reviveSwitch(SwitchId switchId) {
-        throw new UnsupportedOperationException(
-                "reviveSwitch operation for a-switch is not available on hardware env");
-    }
-
-    @Override
     public void stopFloodlight() {
         restTemplate.exchange(labService.getLab().getLabId() + "/lock-keeper/floodlight/stop", HttpMethod.POST,
                 new HttpEntity(buildJsonHeaders()), String.class);

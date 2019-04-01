@@ -50,23 +50,6 @@ public class LockKeeperVirtualImpl extends LockKeeperServiceImpl {
     }
 
     @Override
-    public void knockoutSwitch(SwitchId switchId) {
-        String swName = getSwitchBySwitchId(switchId).getName();
-        restTemplate.exchange(labService.getLab().getLabId() + "/lock-keeper/knockoutswitch", HttpMethod.POST,
-                new HttpEntity<>(new SwitchModify(swName, null), buildJsonHeaders()), String.class);
-        log.debug("Knocking out switch: {}", swName);
-    }
-
-    @Override
-    public void reviveSwitch(SwitchId switchId) {
-        String swName = getSwitchBySwitchId(switchId).getName();
-        restTemplate.exchange(labService.getLab().getLabId() + "/lock-keeper/reviveswitch", HttpMethod.POST,
-                new HttpEntity<>(new SwitchModify(swName, null),
-                        buildJsonHeaders()), String.class);
-        log.debug("Revive switch: {}", swName);
-    }
-
-    @Override
     public void setController(SwitchId switchId) {
         String swName = getSwitchBySwitchId(switchId).getName();
         restTemplate.exchange(labService.getLab().getLabId() + "/lock-keeper/set-controller", HttpMethod.POST,

@@ -35,19 +35,6 @@ public interface LockKeeperService {
 
     void portsDown(List<Integer> ports);
 
-    /**
-     * Please use the setController(SwitchId switchId) method instead.
-     */
-    @Deprecated
-    void knockoutSwitch(SwitchId switchId);
-
-    /**
-     * Please use the setController(SwitchId switchId, controllers) method instead,
-     * where controllers = managementController + " " + statController .
-     */
-    @Deprecated
-    void reviveSwitch(SwitchId switchId);
-
     void stopFloodlight();
 
     void startFloodlight();
