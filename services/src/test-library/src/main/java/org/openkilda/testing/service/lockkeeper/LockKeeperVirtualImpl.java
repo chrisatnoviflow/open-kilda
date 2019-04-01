@@ -21,14 +21,11 @@ import org.openkilda.testing.service.lockkeeper.model.SwitchModify;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
 import java.util.Objects;
 
 /**
@@ -39,8 +36,7 @@ import java.util.Objects;
 @Profile("virtual")
 public class LockKeeperVirtualImpl extends LockKeeperServiceImpl {
 
-    @Value("#{'${floodlight.controller.uri}'.split(',')}")
-    private List<String> controllerHost;
+    private static String DUMMY_CONTROLLER = "tcp:192.0.2.0:6666";
 
     @Autowired
     private TopologyDefinition topology;
@@ -71,20 +67,18 @@ public class LockKeeperVirtualImpl extends LockKeeperServiceImpl {
     }
 
     @Override
-    public ResponseEntity<String> setManagementControllerOnSwitch(SwitchId switchId) {
+    public void setController(SwitchId switchId) {
         String swName = getSwitchBySwitchId(switchId).getName();
-        log.debug("Trying to set management controller on the switch: {}", swName);
-        return restTemplate.exchange(labService.getLab().getLabId() + "/lock-keeper/set-management-controller-only",
-                HttpMethod.POST,
-                new HttpEntity<>(new SwitchModify(swName, null), buildJsonHeaders()), String.class);
+        restTemplate.exchange(labService.getLab().getLabId() + "/lock-keeper/set-controller", HttpMethod.POST,
+                new HttpEntity<>(new SwitchModify(swName, DUMMY_CONTROLLER), buildJsonHeaders()), String.class);
+        log.debug("Knocking out switch: {}", swName);
     }
 
     @Override
-    public ResponseEntity<String> getControllerOnSwitch(SwitchId switchId) {
+    public void setController(SwitchId switchId, String controller) {
         String swName = getSwitchBySwitchId(switchId).getName();
-        log.debug("Trying to set management controller on the switch: {}", swName);
-        return restTemplate.exchange(labService.getLab().getLabId() + "/lock-keeper/get-controller-on-switch",
-                HttpMethod.POST,
-                new HttpEntity<>(new SwitchModify(swName, null), buildJsonHeaders()), String.class);
+        restTemplate.exchange(labService.getLab().getLabId() + "/lock-keeper/set-controller", HttpMethod.POST,
+                new HttpEntity<>(new SwitchModify(swName, controller), buildJsonHeaders()), String.class);
+        log.debug("Knocking out switch: {}", swName);
     }
 }

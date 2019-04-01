@@ -27,7 +27,6 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
@@ -126,15 +125,15 @@ public class LockKeeperServiceImpl implements LockKeeperService {
     }
 
     @Override
-    public ResponseEntity<String> setManagementControllerOnSwitch(SwitchId switchId) {
+    public void setController(SwitchId switchId) {
         throw new UnsupportedOperationException(
-                "getControllerOnSwitch method is not available on hardware env");
+                "setController method is not available on hardware env");
     }
 
     @Override
-    public ResponseEntity<String> getControllerOnSwitch(SwitchId switchId) {
+    public void setController(SwitchId switchId, String controller) {
         throw new UnsupportedOperationException(
-                "getControllerOnSwitch method is not available on hardware env");
+                "setController method is not available on hardware env");
     }
 
     HttpHeaders buildJsonHeaders() {

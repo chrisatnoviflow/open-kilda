@@ -1,6 +1,5 @@
 package org.openkilda.functionaltests.spec.stats
 
-import static org.junit.Assume.assumeTrue
 
 import org.openkilda.functionaltests.BaseSpecification
 import org.openkilda.functionaltests.helpers.Wrappers
@@ -14,7 +13,6 @@ import org.springframework.beans.factory.annotation.Value
 import spock.lang.Narrative
 import spock.lang.Shared
 
-import java.awt.TexturePaintContext.Int
 import javax.inject.Provider
 
 @Narrative("TBD")
@@ -23,15 +21,14 @@ class MflStatSpec extends BaseSpecification {
     @Value('${opentsdb.metric.prefix}')
     String metricPrefix
 
-    @Value('${floodlight.controller.uri}')
-    String floodlightControllerUri
+    @Value('${floodlight.controller.management}')
+    private String managementController
+
+    @Value('${floodlight.controller.stat}')
+    private String statController
 
     @Autowired
     Provider<TraffExamService> traffExamProvider
-
-    def setup() {
-        assumeTrue("Not enough floodlight controllers.", floodlightControllerUri.split().size() == 2)
-    }
 
     def "System collects stat from the stat controller only"() {
         given: "A flow"
@@ -59,7 +56,7 @@ class MflStatSpec extends BaseSpecification {
 
         when: "Set management controller on switches which are affected by the flow"
         def currentPath = pathHelper.convert(northbound.getFlowPath(flow.id))*.switchId
-        currentPath.each { lockKeeper.setManagementControllerOnSwitch(it) }
+        currentPath.each { lockKeeper.setController(it, managementController) }
 
         and: "Generate traffic on the given flow"
         exam.setResources(traffExam.startExam(exam, true))
@@ -74,8 +71,8 @@ class MflStatSpec extends BaseSpecification {
             sleep((interval * 1000).toLong())
         }
 
-        when: "Restore default controllers on all switches"
-        currentPath.each { lockKeeper.reviveSwitch(it) }
+        when: "Restore default controllers on updated switches"
+        currentPath.each { lockKeeper.setController(it, managementController + " " + statController) }
 
         then: "Old statistic should be collected"
         Wrappers.wait(waitTime) {
