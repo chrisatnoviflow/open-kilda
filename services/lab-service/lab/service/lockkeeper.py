@@ -110,6 +110,26 @@ def fl_restart():
     return jsonify({'status': 'ok'})
 
 
+@app.route("/set-management-controller-only", methods=['POST'])
+def set_management_controller_only():
+    body = request.get_json()
+    sw = body['name']
+    switches[sw].set_management_controller_only(batch=False)
+    return jsonify({'status': 'ok'})
+
+
+@app.route("/get-controller-on-switch", methods=['POST'])
+def get_controller_on_switch():
+    # is not working
+    body = request.get_json()
+    # with open("./debug-body.txt", "w") as f:
+    #     # f.write(body)
+    #     json.dump(body, f)
+    sw = body['name']
+    # return jsonify({'status': 'ok'})
+    return switches[sw].get_controller
+
+
 def init_app(_switches):
     global switches, A_sw
     switches = _switches

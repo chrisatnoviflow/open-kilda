@@ -118,6 +118,20 @@ class Switch:
             ]
             self.vscmd.extend(cmd) if batch else vsctl(cmd)
 
+    def set_management_controller_only(self, batch=True):
+        # contr = os.subprocess.check_output(
+        #     """docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' floodlight_one""",
+        #     stderr=subprocess.STDOUT,
+        #     shell=True)
+        if self.controller and len(self.controller.split()) > 1:
+            cmd = [ 'set-controller {} {}'.format(self.name, self.controller.split()[0]), ]
+            self.vscmd.extend(cmd) if batch else vsctl(cmd)
+            vsctl(cmd)
+
+    def get_controller(self):
+        cmd = [ 'get-controller {}'.format(self.name), ]
+        vsctl(cmd)
+
 
 class ASwitch(Switch):
     def add_route_flows(self, mappings):

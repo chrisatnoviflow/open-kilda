@@ -27,6 +27,7 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
@@ -122,6 +123,18 @@ public class LockKeeperServiceImpl implements LockKeeperService {
         restTemplate.exchange(labService.getLab().getLabId() + "/lock-keeper/floodlight/restart", HttpMethod.POST,
                 new HttpEntity(buildJsonHeaders()), String.class);
         log.debug("Restarting Floodlight");
+    }
+
+    @Override
+    public ResponseEntity<String> setManagementControllerOnSwitch(SwitchId switchId) {
+        throw new UnsupportedOperationException(
+                "getControllerOnSwitch method is not available on hardware env");
+    }
+
+    @Override
+    public ResponseEntity<String> getControllerOnSwitch(SwitchId switchId) {
+        throw new UnsupportedOperationException(
+                "getControllerOnSwitch method is not available on hardware env");
     }
 
     HttpHeaders buildJsonHeaders() {

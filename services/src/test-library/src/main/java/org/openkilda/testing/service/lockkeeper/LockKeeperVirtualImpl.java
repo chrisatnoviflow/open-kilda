@@ -25,6 +25,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -67,5 +68,23 @@ public class LockKeeperVirtualImpl extends LockKeeperServiceImpl {
                 new HttpEntity<>(new SwitchModify(swName, null),
                         buildJsonHeaders()), String.class);
         log.debug("Revive switch: {}", swName);
+    }
+
+    @Override
+    public ResponseEntity<String> setManagementControllerOnSwitch(SwitchId switchId) {
+        String swName = getSwitchBySwitchId(switchId).getName();
+        log.debug("Trying to set management controller on the switch: {}", swName);
+        return restTemplate.exchange(labService.getLab().getLabId() + "/lock-keeper/set-management-controller-only",
+                HttpMethod.POST,
+                new HttpEntity<>(new SwitchModify(swName, null), buildJsonHeaders()), String.class);
+    }
+
+    @Override
+    public ResponseEntity<String> getControllerOnSwitch(SwitchId switchId) {
+        String swName = getSwitchBySwitchId(switchId).getName();
+        log.debug("Trying to set management controller on the switch: {}", swName);
+        return restTemplate.exchange(labService.getLab().getLabId() + "/lock-keeper/get-controller-on-switch",
+                HttpMethod.POST,
+                new HttpEntity<>(new SwitchModify(swName, null), buildJsonHeaders()), String.class);
     }
 }

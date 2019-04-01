@@ -18,6 +18,8 @@ package org.openkilda.testing.service.lockkeeper;
 import org.openkilda.model.SwitchId;
 import org.openkilda.testing.service.lockkeeper.model.ASwitchFlow;
 
+import org.springframework.http.ResponseEntity;
+
 import java.util.List;
 
 /**
@@ -44,4 +46,7 @@ public interface LockKeeperService {
     void startFloodlight();
 
     void restartFloodlight();
+
+    ResponseEntity<String> setManagementControllerOnSwitch(SwitchId switchId);
+    ResponseEntity<String> getControllerOnSwitch(SwitchId switchId);
 }
