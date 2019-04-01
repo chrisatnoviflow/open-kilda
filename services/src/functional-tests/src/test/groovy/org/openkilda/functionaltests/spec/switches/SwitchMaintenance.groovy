@@ -21,6 +21,10 @@ class SwitchMaintenance extends BaseSpecification {
 
     @Value('${isl.cost.when.under.maintenance}')
     int islCostWhenUnderMaintenance
+    @Value('${floodlight.controller.management}')
+    private String managementController
+    @Value('${floodlight.controller.stat}')
+    private String statController
 
     def setupOnce() {
         database.resetCosts()  // set default cost on all links before tests
@@ -203,7 +207,7 @@ class SwitchMaintenance extends BaseSpecification {
                 "requested bandwidth=$flow.maximumBandwidth: Switch $sw.dpId doesn't have links with enough bandwidth"
 
         and: "Connect the switch back to the controller and unset maintenance mode"
-        lockKeeper.reviveSwitch(sw.dpId)
+        lockKeeper.setController(sw.dpId, managementController + " " + statController)
         northbound.setSwitchMaintenance(sw.dpId, false, false)
         Wrappers.wait(discoveryInterval + WAIT_OFFSET) {
             northbound.getAllLinks().each { assert it.state != IslChangeType.FAILED }

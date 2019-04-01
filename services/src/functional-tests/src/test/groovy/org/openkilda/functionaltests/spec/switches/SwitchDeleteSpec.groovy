@@ -7,12 +7,17 @@ import org.openkilda.functionaltests.BaseSpecification
 import org.openkilda.functionaltests.helpers.Wrappers
 import org.openkilda.messaging.info.event.IslChangeType
 
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.web.client.HttpClientErrorException
 import spock.lang.Unroll
 
 import java.util.concurrent.TimeUnit
 
 class SwitchDeleteSpec extends BaseSpecification {
+    @Value('${floodlight.controller.management}')
+    private String managementController
+    @Value('${floodlight.controller.stat}')
+    private String statController
 
     def "Unable to delete a nonexistent switch"() {
         when: "Try to delete a nonexistent switch"
@@ -57,7 +62,7 @@ class SwitchDeleteSpec extends BaseSpecification {
                 "Unplug and remove them first.*")
 
         and: "Cleanup: activate the switch back"
-        lockKeeper.reviveSwitch(sw.dpId)
+        lockKeeper.setController(sw.dpId, managementController + " " + statController)
         Wrappers.wait(discoveryInterval + WAIT_OFFSET) {
             assert northbound.activeSwitches.any { it.switchId == sw.dpId }
 
@@ -93,7 +98,7 @@ class SwitchDeleteSpec extends BaseSpecification {
                 "Remove them first.*")
 
         and: "Cleanup: activate the switch back and reset costs"
-        lockKeeper.reviveSwitch(sw.dpId)
+        lockKeeper.setController(sw.dpId, managementController + " " + statController)
         Wrappers.wait(WAIT_OFFSET) { assert northbound.activeSwitches.any { it.switchId == sw.dpId } }
 
         swIsls.each { northbound.portUp(sw.dpId, it.srcPort) }
@@ -124,7 +129,7 @@ class SwitchDeleteSpec extends BaseSpecification {
         exc.responseBodyAsString.matches(".*Switch '${flow.source.datapath}' has 1 assigned flows: \\[${flow.id}\\].*")
 
         and: "Cleanup: activate the switch back and remove the flow"
-        lockKeeper.reviveSwitch(flow.source.datapath)
+        lockKeeper.setController(flow.source.datapath, managementController + " " + statController)
         Wrappers.wait(WAIT_OFFSET) { assert northbound.activeSwitches.any { it.switchId == flow.source.datapath } }
         flowHelper.deleteFlow(flow.id)
 
@@ -165,7 +170,7 @@ class SwitchDeleteSpec extends BaseSpecification {
 
         and: "Cleanup: activate the switch back, restore ISLs and reset costs"
         // restore switch
-        lockKeeper.reviveSwitch(sw.dpId)
+        lockKeeper.setController(sw.dpId, managementController + " " + statController)
         Wrappers.wait(WAIT_OFFSET) { assert northbound.activeSwitches.any { it.switchId == sw.dpId } }
 
         // restore ISLs
@@ -202,7 +207,7 @@ class SwitchDeleteSpec extends BaseSpecification {
         and: "Cleanup: restore the switch, ISLs and reset costs"
         // restore switch
         lockKeeper.setController(sw.dpId)
-        lockKeeper.reviveSwitch(sw.dpId)
+        lockKeeper.setController(sw.dpId, managementController + " " + statController)
         Wrappers.wait(WAIT_OFFSET) { assert northbound.activeSwitches.any { it.switchId == sw.dpId } }
 
         // restore ISLs

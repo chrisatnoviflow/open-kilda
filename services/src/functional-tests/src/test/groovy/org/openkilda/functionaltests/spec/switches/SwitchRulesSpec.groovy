@@ -25,6 +25,7 @@ import org.openkilda.model.Cookie
 import org.openkilda.northbound.dto.flows.PingInput
 import org.openkilda.testing.model.topology.TopologyDefinition.Switch
 
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.web.client.HttpClientErrorException
 import spock.lang.Narrative
 import spock.lang.Shared
@@ -33,6 +34,11 @@ import spock.lang.Unroll
 @Narrative("""Verify how Kilda behaves with switch rules (either flow rules or default rules) under different 
 circumstances: e.g. persisting rules on newly connected switch, installing default rules on new switch etc.""")
 class SwitchRulesSpec extends BaseSpecification {
+
+    @Value('${floodlight.controller.management}')
+    private String managementController
+    @Value('${floodlight.controller.stat}')
+    private String statController
 
     @Shared
     Switch srcSwitch, dstSwitch
@@ -70,7 +76,7 @@ class SwitchRulesSpec extends BaseSpecification {
         Wrappers.wait(WAIT_OFFSET) { assert !(srcSwitch.dpId in northbound.getActiveSwitches()*.switchId) }
 
         when: "Connect the switch to the controller"
-        lockKeeper.reviveSwitch(srcSwitch.dpId)
+        lockKeeper.setController(srcSwitch.dpId, managementController + " " + statController)
         Wrappers.wait(WAIT_OFFSET) { assert srcSwitch.dpId in northbound.getActiveSwitches()*.switchId }
 
         then: "Default rules are installed on the switch"
@@ -96,7 +102,7 @@ class SwitchRulesSpec extends BaseSpecification {
         flowHelper.deleteFlow(flow.id)
 
         when: "Connect the switch to the controller"
-        lockKeeper.reviveSwitch(srcSwitch.dpId)
+        lockKeeper.setController(srcSwitch.dpId, managementController + " " + statController)
         Wrappers.wait(WAIT_OFFSET) { assert srcSwitch.dpId in northbound.getActiveSwitches()*.switchId }
 
         then: "Previously installed rules are not deleted from the switch"

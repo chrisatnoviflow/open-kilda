@@ -11,6 +11,7 @@ import org.openkilda.messaging.info.event.PathNode
 import org.openkilda.messaging.payload.flow.FlowState
 import org.openkilda.testing.model.topology.TopologyDefinition.Switch
 
+import org.springframework.beans.factory.annotation.Value
 import spock.lang.Ignore
 import spock.lang.Narrative
 
@@ -21,6 +22,11 @@ This spec verifies different situations when Kilda switches suddenly disconnect 
 Note: For now it is only runnable on virtual env due to no ability to disconnect hardware switches
 """)
 class SwitchFailuresSpec extends BaseSpecification {
+
+    @Value('${floodlight.controller.management}')
+    private String managementController
+    @Value('${floodlight.controller.stat}')
+    private String statController
 
     def setupOnce() {
         requireProfiles("virtual")
@@ -42,8 +48,8 @@ class SwitchFailuresSpec extends BaseSpecification {
         lockKeeper.portsDown([isl.aswitch.inPort, isl.aswitch.outPort])
 
         and: "Switches go back up"
-        lockKeeper.reviveSwitch(isl.srcSwitch.dpId)
-        lockKeeper.reviveSwitch(isl.dstSwitch.dpId)
+        lockKeeper.setController(isl.srcSwitch.dpId, managementController + " " + statController)
+        lockKeeper.setController(isl.dstSwitch.dpId, managementController + " " + statController)
 
         then: "ISL still remains up right before discovery timeout should end"
         sleep(untilIslShouldFail() - 2000)
@@ -87,7 +93,7 @@ class SwitchFailuresSpec extends BaseSpecification {
 
         and: "Goes back up in 2 seconds"
         TimeUnit.SECONDS.sleep(2)
-        lockKeeper.reviveSwitch(srcSwitch.dpId)
+        lockKeeper.setController(srcSwitch.dpId, managementController + " " + statController)
 
         then: "The flow is UP and valid"
         Wrappers.wait(WAIT_OFFSET) {
@@ -137,7 +143,7 @@ class SwitchFailuresSpec extends BaseSpecification {
 
         and: "Reconnect it back in a couple of seconds"
         TimeUnit.SECONDS.sleep(2)
-        lockKeeper.reviveSwitch(uniqueSwitch.dpId)
+        lockKeeper.setController(uniqueSwitch.dpId, managementController + " " + statController)
 
         then: "The flow is UP and valid"
         Wrappers.wait(WAIT_OFFSET) {

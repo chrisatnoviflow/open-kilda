@@ -13,6 +13,7 @@ import org.openkilda.messaging.model.system.FeatureTogglesDto
 import org.openkilda.messaging.payload.flow.FlowState
 import org.openkilda.testing.model.topology.TopologyDefinition.Isl
 
+import org.springframework.beans.factory.annotation.Value
 import spock.lang.Narrative
 import spock.lang.Unroll
 
@@ -20,6 +21,11 @@ import java.util.concurrent.TimeUnit
 
 @Narrative("Verify different cases when Kilda is supposed to automatically reroute certain flow(s).")
 class AutoRerouteSpec extends BaseSpecification {
+
+    @Value('${floodlight.controller.management}')
+    private String managementController
+    @Value('${floodlight.controller.stat}')
+    private String statController
 
     def "Flow is rerouted when one of the flow ISLs fails"() {
         given: "A flow with one alternative path at least"
@@ -115,7 +121,7 @@ class AutoRerouteSpec extends BaseSpecification {
         }
 
         and: "Connect the intermediate switch back and delete the flow"
-        lockKeeper.reviveSwitch(flowPath[1].switchId)
+        lockKeeper.setController(flowPath[1].switchId, managementController + " " + statController)
         Wrappers.wait(WAIT_OFFSET) { assert flowPath[1].switchId in northbound.getActiveSwitches()*.switchId }
         northbound.deleteSwitchRules(flowPath[1].switchId, DeleteRulesAction.IGNORE_DEFAULTS) || true
         flowHelper.deleteFlow(flow.id)
@@ -143,7 +149,7 @@ class AutoRerouteSpec extends BaseSpecification {
         }
 
         when: "The #switchType switch is connected back"
-        lockKeeper.reviveSwitch(sw)
+        lockKeeper.setController(sw, managementController + " " + statController)
 
         then: "The flow becomes 'Up'"
         Wrappers.wait(rerouteDelay + discoveryInterval + WAIT_OFFSET) {
@@ -196,7 +202,7 @@ class AutoRerouteSpec extends BaseSpecification {
                 .build())
 
         and: "Connect the intermediate switch back"
-        lockKeeper.reviveSwitch(flowPath[1].switchId)
+        lockKeeper.setController(flowPath[1].switchId, managementController + " " + statController)
         Wrappers.wait(WAIT_OFFSET) { assert northbound.activeSwitches*.switchId.contains(flowPath[1].switchId) }
 
         then: "The flow is #flowStatus"
@@ -288,7 +294,7 @@ class AutoRerouteSpec extends BaseSpecification {
 
         when: "Connect switches that are involved in the alternative paths"
         disconnectedSwitches.findAll { !(it.switchId in flowPath*.switchId) }.each {
-            lockKeeper.reviveSwitch(it.switchId)
+            lockKeeper.setController(it.switchId, managementController + " " + statController)
             disconnectedSwitches.remove(it)
         }
         def connectedSwitches = topology.activeSwitches*.dpId.findAll { !disconnectedSwitches*.switchId.contains(it) }
@@ -306,7 +312,7 @@ class AutoRerouteSpec extends BaseSpecification {
         PathHelper.convert(northbound.getFlowPath(flow.id)) != flowPath
 
         and: "Connect switches back involved in the original path and delete the flow"
-        disconnectedSwitches.each { lockKeeper.reviveSwitch(it.switchId) }
+        disconnectedSwitches.each { lockKeeper.setController(it.switchId, managementController + " " + statController) }
         Wrappers.wait(WAIT_OFFSET) {
             def activeSwitches = northbound.getActiveSwitches()*.switchId
             disconnectedSwitches.each { assert it.switchId in activeSwitches }
@@ -374,7 +380,7 @@ class AutoRerouteSpec extends BaseSpecification {
         Wrappers.wait(WAIT_OFFSET) { assert !(switchToDisconnect.dpId in northbound.getActiveSwitches()*.switchId) }
 
         when: "Connect the switch back to the controller"
-        lockKeeper.reviveSwitch(switchToDisconnect.dpId)
+        lockKeeper.setController(switchToDisconnect.dpId, managementController + " " + statController)
 
         then: "The switch is really connected to the controller"
         Wrappers.wait(WAIT_OFFSET) { assert switchToDisconnect.dpId in northbound.getActiveSwitches()*.switchId }
