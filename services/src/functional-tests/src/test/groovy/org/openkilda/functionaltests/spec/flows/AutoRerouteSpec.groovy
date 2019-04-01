@@ -97,7 +97,7 @@ class AutoRerouteSpec extends BaseSpecification {
         def flowPath = PathHelper.convert(northbound.getFlowPath(flow.id))
 
         when: "An intermediate switch is disconnected"
-        lockKeeper.knockoutSwitch(flowPath[1].switchId)
+        lockKeeper.setController(flowPath[1].switchId)
 
         then: "All ISLs going through the intermediate switch are 'FAILED'"
         Wrappers.wait(discoveryTimeout * 1.5 + WAIT_OFFSET) {
@@ -135,7 +135,7 @@ class AutoRerouteSpec extends BaseSpecification {
         flowHelper.addFlow(flow)
 
         when: "The #switchType switch is disconnected"
-        lockKeeper.knockoutSwitch(sw)
+        lockKeeper.setController(sw)
 
         then: "The flow becomes 'Down'"
         Wrappers.wait(discoveryTimeout + rerouteDelay + WAIT_OFFSET * 2) {
@@ -183,7 +183,7 @@ class AutoRerouteSpec extends BaseSpecification {
         }
 
         when: "The intermediate switch is disconnected"
-        lockKeeper.knockoutSwitch(flowPath[1].switchId)
+        lockKeeper.setController(flowPath[1].switchId)
 
         then: "The flow becomes 'Down'"
         Wrappers.wait(discoveryTimeout + rerouteDelay + WAIT_OFFSET * 2) {
@@ -274,7 +274,7 @@ class AutoRerouteSpec extends BaseSpecification {
             !(it.switchId in [flowPath.first(), flowPath.last()]*.switchId)
         }.each { sw ->
             disconnectedSwitches.add(sw)
-            lockKeeper.knockoutSwitch(sw.switchId)
+            lockKeeper.setController(sw.switchId)
         }
         Wrappers.wait(WAIT_OFFSET) {
             def actualSwitches = northbound.activeSwitches*.switchId
@@ -368,7 +368,7 @@ class AutoRerouteSpec extends BaseSpecification {
         when: "Disconnect one of the switches not used by flow"
         def involvedSwitches = pathHelper.getInvolvedSwitches(flowPath)
         def switchToDisconnect = topology.getActiveSwitches().find { !involvedSwitches.contains(it) }
-        lockKeeper.knockoutSwitch(switchToDisconnect.dpId)
+        lockKeeper.setController(switchToDisconnect.dpId)
 
         then: "The switch is really disconnected from the controller"
         Wrappers.wait(WAIT_OFFSET) { assert !(switchToDisconnect.dpId in northbound.getActiveSwitches()*.switchId) }

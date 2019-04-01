@@ -168,7 +168,7 @@ class SwitchMaintenance extends BaseSpecification {
         given: "An active switch under maintenance disconnected from the controller"
         def sw = topology.activeSwitches.first()
         northbound.setSwitchMaintenance(sw.dpId, true, false)
-        lockKeeper.knockoutSwitch(sw.dpId)
+        lockKeeper.setController(sw.dpId)
         Wrappers.wait(discoveryTimeout + WAIT_OFFSET) {
             northbound.getAllLinks().findAll { sw.dpId in [it.source, it.destination]*.switchId }.each {
                 assert it.state == IslChangeType.FAILED

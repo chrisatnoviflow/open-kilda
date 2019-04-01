@@ -44,7 +44,7 @@ class SwitchDeleteSpec extends BaseSpecification {
         def swIsls = topology.getRelatedIsls(sw)
 
         // deactivate switch
-        lockKeeper.knockoutSwitch(sw.dpId)
+        lockKeeper.setController(sw.dpId)
         Wrappers.wait(WAIT_OFFSET) { assert !northbound.activeSwitches.any { it.switchId == sw.dpId } }
 
         when: "Try to delete the switch"
@@ -80,7 +80,7 @@ class SwitchDeleteSpec extends BaseSpecification {
         }
 
         // deactivate switch
-        lockKeeper.knockoutSwitch(sw.dpId)
+        lockKeeper.setController(sw.dpId)
         Wrappers.wait(WAIT_OFFSET) { assert !northbound.activeSwitches.any { it.switchId == sw.dpId } }
 
         when: "Try to delete the switch"
@@ -112,7 +112,7 @@ class SwitchDeleteSpec extends BaseSpecification {
         flowHelper.addFlow(flow)
 
         when: "Deactivate the switch"
-        lockKeeper.knockoutSwitch(flow.source.datapath)
+        lockKeeper.setController(flow.source.datapath)
         Wrappers.wait(WAIT_OFFSET) { assert !northbound.activeSwitches.any { it.switchId == flow.source.datapath } }
 
         and: "Try to delete the switch"
@@ -153,7 +153,7 @@ class SwitchDeleteSpec extends BaseSpecification {
         }
 
         // deactivate switch
-        lockKeeper.knockoutSwitch(sw.dpId)
+        lockKeeper.setController(sw.dpId)
         Wrappers.wait(WAIT_OFFSET) { assert !northbound.activeSwitches.any { it.switchId == sw.dpId } }
 
         when: "Try to delete the switch"
@@ -201,7 +201,7 @@ class SwitchDeleteSpec extends BaseSpecification {
 
         and: "Cleanup: restore the switch, ISLs and reset costs"
         // restore switch
-        lockKeeper.knockoutSwitch(sw.dpId)
+        lockKeeper.setController(sw.dpId)
         lockKeeper.reviveSwitch(sw.dpId)
         Wrappers.wait(WAIT_OFFSET) { assert northbound.activeSwitches.any { it.switchId == sw.dpId } }
 

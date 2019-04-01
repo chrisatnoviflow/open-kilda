@@ -66,7 +66,7 @@ class SwitchRulesSpec extends BaseSpecification {
         northbound.deleteSwitchRules(srcSwitch.dpId, DeleteRulesAction.DROP_ALL)
         Wrappers.wait(RULES_DELETION_TIME) { assert northbound.getSwitchRules(srcSwitch.dpId).flowEntries.isEmpty() }
 
-        lockKeeper.knockoutSwitch(srcSwitch.dpId)
+        lockKeeper.setController(srcSwitch.dpId)
         Wrappers.wait(WAIT_OFFSET) { assert !(srcSwitch.dpId in northbound.getActiveSwitches()*.switchId) }
 
         when: "Connect the switch to the controller"
@@ -91,7 +91,7 @@ class SwitchRulesSpec extends BaseSpecification {
             assert defaultPlusFlowRules.size() == srcSwDefaultRules.size() + flowRulesCount
         }
 
-        lockKeeper.knockoutSwitch(srcSwitch.dpId)
+        lockKeeper.setController(srcSwitch.dpId)
         Wrappers.wait(WAIT_OFFSET) { assert !(srcSwitch.dpId in northbound.getActiveSwitches()*.switchId) }
         flowHelper.deleteFlow(flow.id)
 

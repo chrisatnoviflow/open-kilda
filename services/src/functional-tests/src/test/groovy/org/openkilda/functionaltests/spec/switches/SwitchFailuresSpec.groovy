@@ -33,8 +33,8 @@ class SwitchFailuresSpec extends BaseSpecification {
         flowHelper.addFlow(flow)
 
         when: "Two neighbouring switches of the flow go down simultaneously"
-        lockKeeper.knockoutSwitch(isl.srcSwitch.dpId)
-        lockKeeper.knockoutSwitch(isl.dstSwitch.dpId)
+        lockKeeper.setController(isl.srcSwitch.dpId)
+        lockKeeper.setController(isl.dstSwitch.dpId)
         def timeSwitchesBroke = System.currentTimeMillis()
         def untilIslShouldFail = { timeSwitchesBroke + discoveryTimeout * 1000 - System.currentTimeMillis() }
 
@@ -82,7 +82,7 @@ class SwitchFailuresSpec extends BaseSpecification {
         addFlow.start()
 
         and: "One of the switches goes down without waiting for flow's UP status"
-        lockKeeper.knockoutSwitch(srcSwitch.dpId)
+        lockKeeper.setController(srcSwitch.dpId)
         addFlow.join()
 
         and: "Goes back up in 2 seconds"
@@ -132,7 +132,7 @@ class SwitchFailuresSpec extends BaseSpecification {
         reroute.start()
 
         and: "Immediately disconnect a switch on the new path"
-        lockKeeper.knockoutSwitch(uniqueSwitch.dpId)
+        lockKeeper.setController(uniqueSwitch.dpId)
         reroute.join()
 
         and: "Reconnect it back in a couple of seconds"
