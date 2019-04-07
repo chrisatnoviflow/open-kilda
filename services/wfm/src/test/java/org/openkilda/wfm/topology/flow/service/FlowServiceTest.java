@@ -16,6 +16,7 @@
 package org.openkilda.wfm.topology.flow.service;
 
 import static java.util.Arrays.asList;
+import static java.util.Collections.emptySet;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertEquals;
@@ -25,7 +26,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import org.openkilda.model.FlowPair;
+import org.openkilda.model.Flow;
 import org.openkilda.model.FlowPath;
 import org.openkilda.model.FlowStatus;
 import org.openkilda.model.Isl;
@@ -42,7 +43,6 @@ import org.openkilda.persistence.repositories.IslRepository;
 import org.openkilda.persistence.repositories.SwitchRepository;
 import org.openkilda.wfm.Neo4jBasedTest;
 import org.openkilda.wfm.error.FlowNotFoundException;
-import org.openkilda.wfm.error.NoNewPathException;
 import org.openkilda.wfm.share.flow.resources.FlowResourcesConfig;
 import org.openkilda.wfm.share.flow.resources.FlowResourcesManager;
 import org.openkilda.wfm.share.flow.resources.ResourceAllocationException;
@@ -53,8 +53,8 @@ import org.openkilda.wfm.topology.flow.validation.SwitchValidationException;
 
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.Mockito;
 
-import java.util.Collections;
 import java.util.Optional;
 
 public class FlowServiceTest extends Neo4jBasedTest {
@@ -82,6 +82,10 @@ public class FlowServiceTest extends Neo4jBasedTest {
                     Path.Segment.builder().srcSwitchId(SWITCH_ID_2).srcPort(11).latency(1L)
                             .destSwitchId(SWITCH_ID_1).destPort(11).build()))
                     .build()).build();
+    private static String FLOW_ID = "test-flow";
+
+    private FlowService flowService;
+    private PathComputer pathComputer;
 
     @Before
     public void setUp() {
@@ -138,45 +142,101 @@ public class FlowServiceTest extends Neo4jBasedTest {
         isl3To1.setDestSwitch(switch1);
         isl3To1.setDestPort(11);
         islRepository.createOrUpdate(isl3To1);
-    }
 
-    @Test
-    public void shouldRerouteFlow() throws RecoverableException, UnroutableFlowException,
-            FlowNotFoundException, FlowAlreadyExistException, FlowValidationException,
-            SwitchValidationException, ResourceAllocationException, NoNewPathException {
-        PathComputer pathComputer = mock(PathComputer.class);
+        pathComputer = mock(PathComputer.class);
         PathComputerFactory pathComputerFactory = mock(PathComputerFactory.class);
         FlowValidator flowValidator = new FlowValidator(persistenceManager.getRepositoryFactory());
         when(pathComputerFactory.getPathComputer()).thenReturn(pathComputer);
 
         FlowResourcesConfig flowResourcesConfig = configurationProvider.getConfiguration(FlowResourcesConfig.class);
-        FlowService flowService = new FlowService(persistenceManager,
-                pathComputerFactory, new FlowResourcesManager(persistenceManager, flowResourcesConfig), flowValidator,
-                new FlowCommandFactory());
+        FlowResourcesManager resourcesManager = new FlowResourcesManager(persistenceManager, flowResourcesConfig);
 
-        String flowId = "test-flow";
-        FlowPair flowPair = new FlowPair(flowId,
-                getOrCreateSwitch(SWITCH_ID_1), 1, 101,
-                getOrCreateSwitch(SWITCH_ID_3), 2, 102,
-                1);
-        flowPair.getForward().setBandwidth(0);
-        flowPair.setStatus(FlowStatus.IN_PROGRESS);
+        flowService = new FlowService(persistenceManager,
+                pathComputerFactory, resourcesManager, flowValidator, new FlowCommandFactory());
+    }
+
+    @Test
+    public void shouldSurviveResourceAllocationFailureOnCreateFlowWithProtectedPath() throws RecoverableException,
+            UnroutableFlowException, FlowNotFoundException, FlowAlreadyExistException, FlowValidationException,
+            SwitchValidationException, ResourceAllocationException {
+
+        FlowService flowServiceSpy = Mockito.spy(flowService);
+        Mockito.doThrow(ResourceAllocationException.class).doCallRealMethod()
+                .when(flowServiceSpy).createProtectedPath(any(), any());
+
+        Flow flow = getFlowBuilder()
+                .allocateProtectedPath(true)
+                .build();
+
+        when(pathComputer.getPath(any()))
+                .thenReturn(PATH_DIRECT_1_TO_3)
+                .thenReturn(PATH_1_TO_3_VIA_2);
+
+        flowService.createFlow(flow, null, mock(FlowCommandSender.class));
+
+        Optional<Flow> foundFlow = persistenceManager.getRepositoryFactory().createFlowRepository()
+                .findById(FLOW_ID);
+        assertEquals(flow.getFlowId(), foundFlow.get().getFlowId());
+    }
+
+    @Test
+    public void shouldRerouteFlow() throws RecoverableException, UnroutableFlowException,
+            FlowNotFoundException, FlowAlreadyExistException, FlowValidationException,
+            SwitchValidationException, ResourceAllocationException {
+
+        Flow flow = getFlowBuilder().build();
 
         when(pathComputer.getPath(any())).thenReturn(PATH_DIRECT_1_TO_3);
 
-        flowService.createFlow(flowPair.getFlowEntity(), null, mock(FlowCommandSender.class));
-        flowService.updateFlowStatus(flowId, FlowStatus.UP, Collections.emptySet());
+        flowService.createFlow(flow, null, mock(FlowCommandSender.class));
+        flowService.updateFlowStatus(FLOW_ID, FlowStatus.UP, emptySet());
 
         when(pathComputer.getPath(any(), eq(true))).thenReturn(PATH_1_TO_3_VIA_2);
 
         ReroutedFlow reroutedFlow =
-                flowService.rerouteFlow(flowId, true, Collections.emptySet(), mock(FlowCommandSender.class));
+                flowService.rerouteFlow(FLOW_ID, true, emptySet(), mock(FlowCommandSender.class));
         assertNotNull(reroutedFlow);
         checkSamePaths(PATH_1_TO_3_VIA_2.getForward(), reroutedFlow.getNewFlow().getFlowPath());
 
-        Optional<FlowPair> foundFlow = persistenceManager.getRepositoryFactory().createFlowPairRepository()
-                .findById(flowId);
-        assertEquals(flowPair.getForward().getFlowId(), foundFlow.get().getForward().getFlowId());
+        Optional<Flow> foundFlow = persistenceManager.getRepositoryFactory().createFlowRepository()
+                .findById(FLOW_ID);
+        assertEquals(flow.getFlowId(), foundFlow.get().getFlowId());
+    }
+
+    @Test
+    public void shouldNotUpdatePathsOnRerouteWithProtectedFlowIfNoOtherPaths() throws RecoverableException,
+            UnroutableFlowException, FlowNotFoundException, FlowAlreadyExistException, FlowValidationException,
+            SwitchValidationException, ResourceAllocationException {
+
+        Flow flow = getFlowBuilder()
+                .allocateProtectedPath(true)
+                .build();
+
+        when(pathComputer.getPath(any()))
+                .thenReturn(PATH_DIRECT_1_TO_3)
+                .thenReturn(PATH_1_TO_3_VIA_2);
+
+        flowService.createFlow(flow, null, mock(FlowCommandSender.class));
+        flowService.updateFlowStatus(FLOW_ID, FlowStatus.UP, emptySet());
+
+        when(pathComputer.getPath(any(), eq(true))).thenReturn(PATH_DIRECT_1_TO_3);
+        when(pathComputer.getPath(any()))
+                .thenReturn(PATH_1_TO_3_VIA_2);
+
+        ReroutedFlow reroutedFlow =
+                flowService.rerouteFlow(FLOW_ID, false, emptySet(), mock(FlowCommandSender.class));
+
+        Flow newFlow = reroutedFlow.getNewFlow().getFlowEntity();
+        Flow oldFlow = reroutedFlow.getOldFlow().getFlowEntity();
+
+        assertEquals(newFlow.getForwardPath(), oldFlow.getForwardPath());
+        assertEquals(newFlow.getReversePath(), oldFlow.getReversePath());
+        assertEquals(newFlow.getProtectedForwardPath(), oldFlow.getProtectedForwardPath());
+        assertEquals(newFlow.getProtectedReversePath(), oldFlow.getProtectedReversePath());
+
+        Optional<Flow> foundFlow = persistenceManager.getRepositoryFactory().createFlowRepository()
+                .findById(FLOW_ID);
+        assertEquals(flow.getFlowId(), foundFlow.get().getFlowId());
     }
 
     private void checkSamePaths(Path path, FlowPath flowPath) {
@@ -192,6 +252,14 @@ public class FlowServiceTest extends Neo4jBasedTest {
                         .build())
                 .toArray(Path.Segment[]::new);
         assertThat(path.getSegments(), containsInAnyOrder(flowPathSegments));
+    }
+
+    private Flow.FlowBuilder getFlowBuilder() {
+        return Flow.builder()
+                .flowId(FLOW_ID)
+                .srcSwitch(getOrCreateSwitch(SWITCH_ID_1)).srcPort(1).srcVlan(101)
+                .destSwitch(getOrCreateSwitch(SWITCH_ID_3)).destPort(2).destVlan(102)
+                .status(FlowStatus.IN_PROGRESS);
     }
 
     private Switch getOrCreateSwitch(SwitchId switchId) {
