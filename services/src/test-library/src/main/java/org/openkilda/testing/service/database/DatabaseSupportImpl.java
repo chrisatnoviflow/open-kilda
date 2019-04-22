@@ -24,6 +24,7 @@ import org.openkilda.messaging.info.event.PathInfoData;
 import org.openkilda.messaging.info.event.PathNode;
 import org.openkilda.messaging.model.FlowDto;
 import org.openkilda.messaging.model.FlowPairDto;
+import org.openkilda.model.Flow;
 import org.openkilda.model.FlowPair;
 import org.openkilda.model.FlowPath;
 import org.openkilda.model.IslStatus;
@@ -303,6 +304,10 @@ public class DatabaseSupportImpl implements Database {
         return flowPair
                 .map(flow -> new FlowPairDto<>(convert(flow.getForward()), convert(flow.getReverse())))
                 .orElse(null);
+    }
+
+    public Optional<Flow> getFlow2(String flowId) {
+        return flowRepository.findById(flowId);
     }
 
     /**

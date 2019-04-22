@@ -60,7 +60,7 @@ class FlowHelper {
     }
 
     FlowCreatePayload randomFlow(PotentialFlow potentialFlow, boolean useTraffgenPorts = true,
-            List<FlowCreatePayload> existingFlows = []) {
+                                 List<FlowCreatePayload> existingFlows = []) {
         randomFlow(potentialFlow.src, potentialFlow.dst, useTraffgenPorts, existingFlows)
     }
 
@@ -210,50 +210,43 @@ class FlowHelper {
         def dstMainSwitch = mainFlowPath[-1]
         def mainFlowTransitSwitches = mainFlowPath[1..-2]
         def protectedFlowPath = flowPathInfo.protectedPath.forwardPath
-        def srcProtectedSwitch = protectedFlowPath[0]
-        def dstProtectedSwitch = protectedFlowPath[-1]
         def protectedFlowTransitSwitches = protectedFlowPath[1..-2]
 
         def commonSwitches = mainFlowPath*.switchId.intersect(protectedFlowPath*.switchId)
         def commonTransitSwitches = mainFlowTransitSwitches*.switchId.intersect(protectedFlowTransitSwitches*.switchId)
 
+        def flowInfo = db.getFlow2(flowId)
+        def mainForwardCookie = flowInfo.value.forwardPath.cookie.value
+        def mainReverseCookie = flowInfo.value.reversePath.cookie.value
+        def protectedForwardCookie = flowInfo.value.protectedForwardPath.cookie.value
+        def protectedReverseCookie = flowInfo.value.protectedReversePath.cookie.value
+
         def rulesOnSrcSwitch = northbound.getSwitchRules(srcMainSwitch.switchId).flowEntries.findAll {
             !Cookie.isDefaultRule(it.cookie)
-        }
-        assert rulesOnSrcSwitch.size() == 3
-        //rules for main path
-        assert findForwardPathRules(rulesOnSrcSwitch, srcMainSwitch).size() == 1
-        assert findReversePathRules(rulesOnSrcSwitch, srcMainSwitch).size() == 1
-        //rule for protected path
-        assert findForwardPathRules(rulesOnSrcSwitch, srcProtectedSwitch).size() == 0
-        assert findReversePathRules(rulesOnSrcSwitch, srcProtectedSwitch).size() == 1
+        }*.cookie
+        assert rulesOnSrcSwitch.contains(mainForwardCookie)
+        assert rulesOnSrcSwitch.contains(mainReverseCookie)
+        assert !rulesOnSrcSwitch.contains(protectedForwardCookie)
+        assert rulesOnSrcSwitch.contains(protectedReverseCookie)
 
         def rulesOnDstSwitch = northbound.getSwitchRules(dstMainSwitch.switchId).flowEntries.findAll {
             !Cookie.isDefaultRule(it.cookie)
-        }
-        assert rulesOnDstSwitch.size() == 3
-        //rules for main path
-        assert findForwardPathRules(rulesOnDstSwitch, dstMainSwitch).size() == 1
-        assert findReversePathRules(rulesOnDstSwitch, dstMainSwitch).size() == 1
-        //rule for protected path
-        assert findForwardPathRules(rulesOnDstSwitch, dstProtectedSwitch).size() == 1
-        assert findReversePathRules(rulesOnDstSwitch, dstProtectedSwitch).size() == 0
+        }*.cookie
+        assert rulesOnDstSwitch.contains(mainForwardCookie)
+        assert rulesOnDstSwitch.contains(mainReverseCookie)
+        assert rulesOnDstSwitch.contains(protectedForwardCookie)
+        assert !rulesOnDstSwitch.contains(protectedReverseCookie)
 
         //this loop checks rules on common nodes(except src and dst switches)
         commonTransitSwitches.each { sw ->
             def rules = northbound.getSwitchRules(sw).flowEntries.findAll {
                 !Cookie.isDefaultRule(it.cookie)
             }
-            assert rules.size() == 4
-
-            def mainNode = mainFlowTransitSwitches.find { it.switchId == sw }
-            assert findForwardPathRules(rules, mainNode).size() == 1
-            assert findReversePathRules(rules, mainNode).size() == 1
-
-            def protectedNode = protectedFlowTransitSwitches.find { it.switchId == sw }
-            assert findForwardPathRules(rules, protectedNode).size() == 1
-            assert findReversePathRules(rules, protectedNode).size() == 1
-        }
+            assert rules.contains(mainForwardCookie)
+            assert rules.contains(mainReverseCookie)
+            assert rules.contains(protectedForwardCookie)
+            assert rules.contains(protectedReverseCookie)
+        } || true
 
         def uniqueTransitSwitches = protectedFlowTransitSwitches.findAll { !commonSwitches.contains(it.switchId) } +
                 mainFlowTransitSwitches.findAll { !commonSwitches.contains(it.switchId) }
@@ -262,22 +255,25 @@ class FlowHelper {
         uniqueTransitSwitches.each { node ->
             def rules = northbound.getSwitchRules(node.switchId).flowEntries.findAll {
                 !Cookie.isDefaultRule(it.cookie)
+            }*.cookie
+            if (mainFlowPath.find { it.switchId == node.switchId }) {
+                assert rules.contains(mainForwardCookie)
+                assert rules.contains(mainReverseCookie)
+            }else {
+                assert rules.contains(protectedForwardCookie)
+                assert rules.contains(protectedReverseCookie)
             }
-            assert rules.size() == 2
-
-            assert findForwardPathRules(rules, node).size() == 1
-            assert findReversePathRules(rules, node).size() == 1
-        }
+        } || true
     }
 
-    List<FlowEntry> findForwardPathRules(List<FlowEntry> rules, PathNodePayload node) {
+    static List<FlowEntry> findForwardPathRules(List<FlowEntry> rules, PathNodePayload node) {
         return rules.findAll {
             it.match.inPort == node.inputPort.toString() &&
                     it.instructions.applyActions.flowOutput == node.outputPort.toString()
         }
     }
 
-    List<FlowEntry> findReversePathRules(List<FlowEntry> rules, PathNodePayload node) {
+    static List<FlowEntry> findReversePathRules(List<FlowEntry> rules, PathNodePayload node) {
         return rules.findAll {
             it.instructions?.applyActions?.flowOutput == node.inputPort.toString() &&
                     it.match.inPort == node.outputPort.toString()
@@ -301,7 +297,7 @@ class FlowHelper {
      * in 'allowedPorts'
      */
     private FlowEndpointPayload getFlowEndpoint(Switch sw, List<Integer> allowedPorts,
-            boolean useTraffgenPorts = true) {
+                                                boolean useTraffgenPorts = true) {
         def port = allowedPorts[random.nextInt(allowedPorts.size())]
         if (useTraffgenPorts) {
             def connectedTraffgens = topology.activeTraffGens.findAll { it.switchConnected == sw }
