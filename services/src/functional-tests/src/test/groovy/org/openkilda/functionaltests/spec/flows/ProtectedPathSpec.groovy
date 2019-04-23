@@ -529,6 +529,56 @@ class ProtectedPathSpec extends BaseSpecification {
         database.resetCosts()
     }
 
+    def "System is able to recalculate protected path when a link is under maintenance"() {
+        given: "Two active not neighboring switches with two possible paths at least"
+        def (Switch srcSwitch, Switch dstSwitch) = getNotNeighboringSwitchPair(4)
+
+        when: "Create a flow with protected path"
+        def flow = flowHelper.randomFlow(srcSwitch, dstSwitch)
+        flow.allocateProtectedPath = true
+        flowHelper.addFlow(flow)
+
+        then: "Flow is created with protected path"
+        def flowPathInfo = northbound.getFlowPath(flow.id)
+        flowPathInfo.protectedPath
+
+        and: "Current path is not equal to protected path"
+        def currentPath = pathHelper.convert(flowPathInfo)
+        def currentProtectedPath = pathHelper.convert(flowPathInfo.protectedPath)
+        currentPath != currentProtectedPath
+
+        when: "Set maintenance mode for the first involved link in protected path"
+        def islUnderMaintenance = pathHelper.getInvolvedIsls(currentProtectedPath).first()
+        def response = northbound.setLinkMaintenance(islUtils.toLinkUnderMaintenance(islUnderMaintenance, true, true))
+
+        then: "Maintenance flag for forward and reverse ISLs is really set"
+        response.each { assert it.underMaintenance }
+
+        and: "Protected path is recalculated"
+        def newProtectedPath
+        Wrappers.wait(WAIT_OFFSET) {
+            newProtectedPath = pathHelper.convert(northbound.getFlowPath(flow.id).protectedPath)
+            newProtectedPath != currentProtectedPath
+        }
+
+        and: "Main path is not changed"
+        def newFlowPathInfo = northbound.getFlowPath(flow.id)
+        def newCurrentPath = pathHelper.convert(newFlowPathInfo)
+        currentPath == newCurrentPath
+
+        when: "Unset maintenance mode for the link"
+        def response1 = northbound.setLinkMaintenance(islUtils.toLinkUnderMaintenance(islUnderMaintenance, false, false))
+
+        then: "Maintenance flag for forward and reverse ISLs is really set"
+        response1.each { assert !it.underMaintenance }
+
+        and: "Protected path is not recalculated"
+        newProtectedPath == pathHelper.convert(newFlowPathInfo.protectedPath)
+
+        and: "Cleanup: revert system to original state"
+        flowHelper.deleteFlow(flow.id)
+    }
+
     @Unroll
     def "Unable to create protected path on #flowDescription flow on the same path"() {
         given: "Two active neighboring switches with two not overlapping paths at least"
