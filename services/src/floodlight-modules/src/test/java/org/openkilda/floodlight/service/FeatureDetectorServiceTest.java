@@ -70,13 +70,13 @@ public class FeatureDetectorServiceTest extends EasyMockSupport {
     @Test
     public void bfdCommon() {
         discoveryCheck(makeSwitchMock("NoviFlow Inc", "NW400.4.0", OFVersion.OF_13),
-                       ImmutableSet.of(Feature.BFD, Feature.METERS));
+                       ImmutableSet.of(Feature.BFD, Feature.METERS, Feature.NOVIFLOW_COPY_FIELD));
     }
 
     @Test
     public void bfdReview() {
         discoveryCheck(makeSwitchMock("NoviFlow Inc", "NW400.4.0", OFVersion.OF_14),
-                       ImmutableSet.of(Feature.BFD, Feature.BFD_REVIEW, Feature.METERS));
+                       ImmutableSet.of(Feature.BFD, Feature.BFD_REVIEW, Feature.METERS, Feature.NOVIFLOW_COPY_FIELD));
     }
 
     private void discoveryCheck(IOFSwitch sw, Set<Feature> expectedFeatures) {

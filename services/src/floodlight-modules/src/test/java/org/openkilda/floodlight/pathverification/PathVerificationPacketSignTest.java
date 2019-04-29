@@ -34,6 +34,7 @@ import net.floodlightcontroller.core.module.FloodlightModuleException;
 import net.floodlightcontroller.packet.Ethernet;
 import net.floodlightcontroller.packet.IPacket;
 import org.easymock.Capture;
+import org.easymock.CaptureType;
 import org.easymock.EasyMock;
 import org.easymock.EasyMockRunner;
 import org.easymock.IAnswer;
@@ -92,7 +93,7 @@ public class PathVerificationPacketSignTest extends PathVerificationPacketInTest
     @Test
     public void testSignPacketPositive() throws Exception {
         producerService.sendMessageAndTrack(anyObject(), anyObject(), anyObject());
-        expectLastCall().once();
+        expectLastCall().times(2);
         replay(producerService);
 
         pvs.handlePacketIn(new OfInput(sw2, ofPacketIn, context));
@@ -116,10 +117,10 @@ public class PathVerificationPacketSignTest extends PathVerificationPacketInTest
 
     @Test
     public void testHandlePacketInWithDifferentPortSpeeds() {
-        Capture<InfoMessage> capturedArgument = newCapture();
+        Capture<InfoMessage> capturedArgument = newCapture(CaptureType.FIRST);
 
         producerService.sendMessageAndTrack(anyObject(), anyObject(), capture(capturedArgument));
-        expectLastCall().once();
+        expectLastCall().times(2);
         replay(producerService);
 
         pvs.handlePacketIn(new OfInput(sw2, ofPacketIn, context));

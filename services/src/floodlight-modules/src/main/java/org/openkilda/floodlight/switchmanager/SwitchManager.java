@@ -19,11 +19,13 @@ import static java.lang.String.format;
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
+import static org.openkilda.floodlight.pathverification.PathVerificationService.LATENCY_PACKET_UDP_PORT;
 import static org.openkilda.floodlight.pathverification.PathVerificationService.VERIFICATION_BCAST_PACKET_DST;
 import static org.openkilda.messaging.Utils.ETH_TYPE;
 import static org.openkilda.model.Cookie.CATCH_BFD_RULE_COOKIE;
 import static org.openkilda.model.Cookie.DROP_RULE_COOKIE;
 import static org.openkilda.model.Cookie.DROP_VERIFICATION_LOOP_RULE_COOKIE;
+import static org.openkilda.model.Cookie.ROUND_TRIP_LATENCY_RULE_COOKIE;
 import static org.openkilda.model.Cookie.VERIFICATION_BROADCAST_RULE_COOKIE;
 import static org.openkilda.model.Cookie.VERIFICATION_UNICAST_RULE_COOKIE;
 import static org.openkilda.model.Cookie.isDefaultRule;
@@ -59,6 +61,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.ListenableFuture;
 import net.floodlightcontroller.core.FloodlightContext;
 import net.floodlightcontroller.core.IFloodlightProviderService;
@@ -73,8 +76,10 @@ import net.floodlightcontroller.restserver.IRestApiService;
 import net.floodlightcontroller.util.FlowModUtils;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.projectfloodlight.openflow.protocol.OFActionType;
 import org.projectfloodlight.openflow.protocol.OFBarrierReply;
 import org.projectfloodlight.openflow.protocol.OFBarrierRequest;
+import org.projectfloodlight.openflow.protocol.OFBucket;
 import org.projectfloodlight.openflow.protocol.OFErrorMsg;
 import org.projectfloodlight.openflow.protocol.OFFactory;
 import org.projectfloodlight.openflow.protocol.OFFlowDelete;
@@ -83,6 +88,12 @@ import org.projectfloodlight.openflow.protocol.OFFlowModFlags;
 import org.projectfloodlight.openflow.protocol.OFFlowStatsEntry;
 import org.projectfloodlight.openflow.protocol.OFFlowStatsReply;
 import org.projectfloodlight.openflow.protocol.OFFlowStatsRequest;
+import org.projectfloodlight.openflow.protocol.OFGroupAdd;
+import org.projectfloodlight.openflow.protocol.OFGroupDelete;
+import org.projectfloodlight.openflow.protocol.OFGroupDescStatsEntry;
+import org.projectfloodlight.openflow.protocol.OFGroupDescStatsReply;
+import org.projectfloodlight.openflow.protocol.OFGroupDescStatsRequest;
+import org.projectfloodlight.openflow.protocol.OFGroupType;
 import org.projectfloodlight.openflow.protocol.OFMessage;
 import org.projectfloodlight.openflow.protocol.OFMeterConfig;
 import org.projectfloodlight.openflow.protocol.OFMeterConfigStatsReply;
@@ -95,6 +106,8 @@ import org.projectfloodlight.openflow.protocol.OFPortDesc;
 import org.projectfloodlight.openflow.protocol.OFPortMod;
 import org.projectfloodlight.openflow.protocol.OFType;
 import org.projectfloodlight.openflow.protocol.action.OFAction;
+import org.projectfloodlight.openflow.protocol.action.OFActionOutput;
+import org.projectfloodlight.openflow.protocol.action.OFActionSetField;
 import org.projectfloodlight.openflow.protocol.action.OFActions;
 import org.projectfloodlight.openflow.protocol.instruction.OFInstructionApplyActions;
 import org.projectfloodlight.openflow.protocol.instruction.OFInstructionMeter;
@@ -121,6 +134,7 @@ import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -149,8 +163,11 @@ public class SwitchManager implements IFloodlightModule, IFloodlightService, ISw
     public static final int VERIFICATION_RULE_PRIORITY = FlowModUtils.PRIORITY_MAX - 1000;
     public static final int DROP_VERIFICATION_LOOP_RULE_PRIORITY = VERIFICATION_RULE_PRIORITY + 1;
     public static final int CATCH_BFD_RULE_PRIORITY = DROP_VERIFICATION_LOOP_RULE_PRIORITY + 1;
+    public static final int ROUND_TRIP_LATENCY_RULE_PRIORITY = CATCH_BFD_RULE_PRIORITY + 5;
     public static final int FLOW_PRIORITY = FlowModUtils.PRIORITY_HIGH;
     public static final int BDF_DEFAULT_PORT = 3784;
+    public static final int ROUND_TRIP_LATENCY_GROUP_ID = 1;
+    public static final int ROUND_TRIP_LATENCY_T1_OFFSET = 944;
 
     // This is invalid VID mask - it cut of highest bit that indicate presence of VLAN tag on package. But valid mask
     // 0x1FFF lead to rule reject during install attempt on accton based switches.
@@ -333,6 +350,7 @@ public class SwitchManager implements IFloodlightModule, IFloodlightService, ISw
         installVerificationRule(dpid, false);
         installDropLoopRule(dpid);
         installBfdCatchFlow(dpid);
+        installRoundTripLatencyFlow(dpid);
     }
 
     /**
@@ -773,10 +791,28 @@ public class SwitchManager implements IFloodlightModule, IFloodlightService, ISw
             }
         }
 
-        logger.debug("Installing verification rule for {}", dpid);
-        ArrayList<OFAction> actionList = new ArrayList<>(3);
-        actionList.add(actionSendToController(sw));
-        actionList.add(actionSetDstMac(sw, dpIdToMac(sw.getId())));
+        ArrayList<OFAction> actionList = new ArrayList<>();
+
+        if (isBroadcast) {
+            logger.info("Installing round trip latency group actions on switch {}", dpid);
+
+            try {
+                OFGroup group = installRoundTripLatencyGroup(sw);
+                actionList.add(ofFactory.actions().group(group));
+                logger.info("Round trip latency group was installed on switch {}", dpid);
+            } catch (OfInstallException | UnsupportedOperationException e) {
+                String message = String.format(
+                        "Couldn't install round trip latency group on switch %s. "
+                        + "Standard discovery actions will be installed instead. Error: %s", dpid, e.getMessage());
+                logger.warn(message, e);
+
+                actionList.add(actionSetDstMac(sw, dpIdToMac(sw.getId())));
+                actionList.add(actionSendToController(sw));
+            }
+        } else {
+            actionList.add(actionSendToController(sw));
+            actionList.add(actionSetDstMac(sw, dpIdToMac(sw.getId())));
+        }
 
         long cookie = isBroadcast ? VERIFICATION_BROADCAST_RULE_COOKIE : VERIFICATION_UNICAST_RULE_COOKIE;
         long meterId = createMeterIdForDefaultRule(cookie).getValue();
@@ -793,6 +829,127 @@ public class SwitchManager implements IFloodlightModule, IFloodlightService, ISw
         String flowname = (isBroadcast) ? "Broadcast" : "Unicast";
         flowname += "--VerificationFlow--" + dpid.toString();
         pushFlow(sw, flowname, flowMod);
+    }
+
+    private OFGroup installRoundTripLatencyGroup(IOFSwitch sw) throws OfInstallException {
+        Optional<OFGroupDescStatsEntry> groupDesc = getGroup(sw, ROUND_TRIP_LATENCY_GROUP_ID);
+
+        if (groupDesc.isPresent()) {
+            if (validateRoundTripLatencyGroup(sw.getId(), groupDesc.get())) {
+                logger.debug("Skip installation of round trip latency group on switch {}. Group exists.", sw.getId());
+                return groupDesc.get().getGroup();
+            } else {
+                logger.debug("Found invalid round trip latency group on switch {}. Need to be deleted.", sw.getId());
+                deleteGroup(sw, ROUND_TRIP_LATENCY_GROUP_ID);
+            }
+        }
+
+        OFGroupAdd groupAdd = getInstallRoundTripLatencyGroupInstruction(sw);
+
+        pushFlow(sw, "--InstallGroup--", groupAdd);
+        sendBarrierRequest(sw);
+
+        return OFGroup.of(ROUND_TRIP_LATENCY_GROUP_ID);
+    }
+
+    private void deleteGroup(IOFSwitch sw, int groupId) throws OfInstallException {
+        OFGroupDelete groupDelete = sw.getOFFactory().buildGroupDelete()
+                .setGroup(OFGroup.of(groupId))
+                .setGroupType(OFGroupType.ALL)
+                .build();
+
+        pushFlow(sw, "--DeleteGroup--", groupDelete);
+        sendBarrierRequest(sw);
+    }
+
+    @VisibleForTesting
+    OFGroupAdd getInstallRoundTripLatencyGroupInstruction(IOFSwitch sw) {
+        OFFactory ofFactory = sw.getOFFactory();
+        List<OFBucket> bucketList = new ArrayList<>();
+        bucketList.add(ofFactory
+                .buildBucket()
+                .setActions(Lists.newArrayList(
+                        actionSetDstMac(sw, dpIdToMac(sw.getId())),
+                        actionSendToController(sw)))
+                .setWatchPort(OFPort.ANY)
+                .setWatchGroup(OFGroup.ANY)
+                .build());
+
+        TransportPort udpPort = TransportPort.of(LATENCY_PACKET_UDP_PORT);
+        List<OFAction> latencyActions = ImmutableList.of(
+                ofFactory.actions().setField(ofFactory.oxms().udpSrc(udpPort)),
+                ofFactory.actions().setField(ofFactory.oxms().udpDst(udpPort)),
+                ofFactory.actions().output(OFPort.IN_PORT, 0xFFFFFFFF));
+
+        bucketList.add(ofFactory
+                .buildBucket()
+                .setActions(latencyActions)
+                .setWatchPort(OFPort.ANY)
+                .setWatchGroup(OFGroup.ANY)
+                .build());
+
+        return ofFactory.buildGroupAdd()
+                .setGroup(OFGroup.of(ROUND_TRIP_LATENCY_GROUP_ID))
+                .setGroupType(OFGroupType.ALL)
+                .setBuckets(bucketList)
+                .build();
+    }
+
+    @VisibleForTesting
+    boolean validateRoundTripLatencyGroup(DatapathId dpId, OFGroupDescStatsEntry groupDesc) {
+        return groupDesc.getGroup().getGroupNumber() == ROUND_TRIP_LATENCY_GROUP_ID
+                && groupDesc.getBuckets().size() == 2
+                && validateRoundTripSendToControllerBucket(dpId, groupDesc.getBuckets().get(0))
+                && validateRoundTripSendBackBucket(groupDesc.getBuckets().get(1));
+    }
+
+    private boolean validateRoundTripSendToControllerBucket(DatapathId dpId, OFBucket bucket) {
+        List<OFAction> actions = bucket.getActions();
+        return actions.size() == 2
+                && actions.get(0).getType() == OFActionType.SET_FIELD       // first action is set Dst mac address
+                && dpIdToMac(dpId).equals(((OFActionSetField) actions.get(0)).getField().getValue())
+                && actions.get(1).getType() == OFActionType.OUTPUT          // second action is send to controller
+                && OFPort.CONTROLLER.equals(((OFActionOutput) actions.get(1)).getPort());
+    }
+
+    private boolean validateRoundTripSendBackBucket(OFBucket bucket) {
+        List<OFAction> actions = bucket.getActions();
+        TransportPort udpPort = TransportPort.of(LATENCY_PACKET_UDP_PORT);
+
+        return actions.size() == 3
+                && actions.get(0).getType() == OFActionType.SET_FIELD
+                && udpPort.equals(((OFActionSetField) actions.get(0)).getField().getValue())
+                && actions.get(1).getType() == OFActionType.SET_FIELD
+                && udpPort.equals(((OFActionSetField) actions.get(1)).getField().getValue())
+                && actions.get(2).getType() == OFActionType.OUTPUT
+                && OFPort.IN_PORT.equals(((OFActionOutput) actions.get(2)).getPort());
+    }
+
+    private List<OFGroupDescStatsEntry> dumpGroups(IOFSwitch sw) {
+        OFFactory ofFactory = sw.getOFFactory();
+        OFGroupDescStatsRequest groupRequest = ofFactory.buildGroupDescStatsRequest().build();
+
+        List<OFGroupDescStatsReply> replies;
+
+        try {
+            ListenableFuture<List<OFGroupDescStatsReply>> future = sw.writeStatsRequest(groupRequest);
+            replies = future.get(10, TimeUnit.SECONDS);
+        } catch (ExecutionException | InterruptedException | TimeoutException e) {
+            logger.error(String.format("Could not dump groups on switch %s.", sw.getId()), e);
+            return Collections.emptyList();
+        }
+
+        return replies.stream()
+                .map(OFGroupDescStatsReply::getEntries)
+                .flatMap(List::stream)
+                .collect(Collectors.toList());
+    }
+
+
+    private Optional<OFGroupDescStatsEntry> getGroup(IOFSwitch sw, int groupId) {
+        return dumpGroups(sw).stream()
+                .filter(groupDesc -> groupDesc.getGroup().getGroupNumber() == groupId)
+                .findFirst();
     }
 
     /**
@@ -819,6 +976,24 @@ public class SwitchManager implements IFloodlightModule, IFloodlightService, ISw
         pushFlow(sw, flowName, flowMod);
     }
 
+    /**
+     * Create an action to place the RxTimestamp in the packet.
+     *
+     * @param sw Switch object
+     * @param offset Offset within packet to copy timstamp at
+     * @return {@link OFAction}
+     */
+    private OFAction actionAddRxTimestamp(final IOFSwitch sw, int offset) {
+        OFOxms oxms = sw.getOFFactory().oxms();
+        OFActions actions = sw.getOFFactory().actions();
+        return actions.buildNoviflowCopyField()
+                .setNBits(64)
+                .setSrcOffset(0)
+                .setDstOffset(offset)
+                .setOxmSrcHeader(oxms.buildNoviflowRxtimestamp().getTypeLen())
+                .setOxmDstHeader(oxms.buildNoviflowPacketOffset().getTypeLen())
+                .build();
+    }
 
     /**
      * {@inheritDoc}
@@ -844,8 +1019,7 @@ public class SwitchManager implements IFloodlightModule, IFloodlightService, ISw
     public void installBfdCatchFlow(DatapathId dpid) throws SwitchOperationException {
 
         IOFSwitch sw = lookupSwitch(dpid);
-        Set<Feature> features = featureDetectorService.detectSwitch(sw);
-        if (!features.contains(Feature.BFD)) {
+        if (!featureDetectorService.isSwitchSupportsFeature(sw, Feature.BFD)) {
             logger.debug("Skip installation of universal BFD catch flow for switch {}", dpid);
         } else {
             OFFactory ofFactory = sw.getOFFactory();
@@ -864,6 +1038,28 @@ public class SwitchManager implements IFloodlightModule, IFloodlightService, ISw
 
     }
 
+    @Override
+    public void installRoundTripLatencyFlow(DatapathId dpid) throws SwitchOperationException {
+        logger.info("Installing round trip default rule on {}", dpid);
+        IOFSwitch sw = lookupSwitch(dpid);
+        if (!featureDetectorService.isSwitchSupportsFeature(sw, Feature.NOVIFLOW_COPY_FIELD)) {
+            logger.info("Skip installation of round-trip latency rule for switch {}", dpid);
+        } else {
+            OFFactory ofFactory = sw.getOFFactory();
+            Match match = roundTripLatencyRuleMatch(dpid, ofFactory);
+            List<OFAction> actions = ImmutableList.of(
+                    actionAddRxTimestamp(sw, ROUND_TRIP_LATENCY_T1_OFFSET),
+                    actionSendToController(sw));
+            OFFlowMod flowMod = prepareFlowModBuilder(
+                    ofFactory, ROUND_TRIP_LATENCY_RULE_COOKIE, ROUND_TRIP_LATENCY_RULE_PRIORITY)
+                    .setMatch(match)
+                    .setActions(actions)
+                    .build();
+            String flowName = "--RoundTripLatencyRule--" + dpid.toString();
+            pushFlow(sw, flowName, flowMod);
+        }
+    }
+
     private Match catchRuleMatch(DatapathId dpid, OFFactory ofFactory) {
         return ofFactory.buildMatch()
             .setExact(MatchField.ETH_DST, dpIdToMac(dpid))
@@ -871,6 +1067,15 @@ public class SwitchManager implements IFloodlightModule, IFloodlightService, ISw
             .setExact(MatchField.IP_PROTO, IpProtocol.UDP)
             .setExact(MatchField.UDP_DST, TransportPort.of(BDF_DEFAULT_PORT))
             .build();
+    }
+
+    private Match roundTripLatencyRuleMatch(DatapathId dpid, OFFactory ofFactory) {
+        return ofFactory.buildMatch()
+                .setExact(MatchField.ETH_TYPE, EthType.IPv4)
+                .setExact(MatchField.ETH_SRC, dpIdToMac(dpid))
+                .setExact(MatchField.IP_PROTO, IpProtocol.UDP)
+                .setExact(MatchField.UDP_DST, TransportPort.of(LATENCY_PACKET_UDP_PORT))
+                .build();
     }
 
     void installDropLoopRule(DatapathId dpid) throws SwitchOperationException {

@@ -26,9 +26,15 @@ import org.projectfloodlight.openflow.types.OFPort;
 class VerificationPacketData {
     private long timestamp;
     private int pathOrdinal;
+    private long switchT0;
+    private long switchT1;
     private IOFSwitch remoteSwitch;
     private DatapathId remoteSwitchId;
     private OFPort remotePort;
     private Long packetId;
     private boolean signed;
+
+    public boolean hasRoundTripLatencyInfo() {
+        return switchT0 > 0;
+    }
 }

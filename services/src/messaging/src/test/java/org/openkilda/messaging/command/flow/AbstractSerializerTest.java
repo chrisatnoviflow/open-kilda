@@ -97,7 +97,6 @@ public abstract class AbstractSerializerTest implements AbstractSerializer {
             new PathNode(new SwitchId("ff:01"), 1, 0, 0L),
             new PathNode(new SwitchId("ff:02"), 2, 1, 0L));
     private static final IslInfoData isl = IslInfoData.builder()
-            .latency(0L)
             .source(nodes.get(0))
             .destination(nodes.get(1))
             .speed(1000L)
@@ -409,7 +408,6 @@ public abstract class AbstractSerializerTest implements AbstractSerializer {
     public void eventIslInfoTest() throws IOException, ClassNotFoundException {
         PathNode payload = new PathNode(SWITCH_ID, INPUT_PORT, 0);
         IslInfoData data = IslInfoData.builder()
-                .latency(0L)
                 .source(payload)
                 .destination(payload)
                 .speed(1000000L)

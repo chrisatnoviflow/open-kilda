@@ -70,7 +70,7 @@ class StormLcmSpec extends BaseSpecification {
         def newNodes = database.dumpAllNodes()
         def newRelation = database.dumpAllRelations()
         expect newNodes, sameBeanAs(nodesDump)
-        expect newRelation, sameBeanAs(relationsDump).ignoring("time_modify")
+        expect newRelation, sameBeanAs(relationsDump).ignoring("time_modify").ignoring("latency")
 
         and: "Flows remain valid in terms of installed rules and meters"
         flows.each { flow ->

@@ -24,6 +24,7 @@ import static org.easymock.EasyMock.capture;
 import static org.easymock.EasyMock.createMock;
 import static org.easymock.EasyMock.expect;
 import static org.easymock.EasyMock.expectLastCall;
+import static org.easymock.EasyMock.isA;
 import static org.easymock.EasyMock.mock;
 import static org.easymock.EasyMock.replay;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -35,18 +36,23 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.beans.HasPropertyWithValue.hasProperty;
 import static org.hamcrest.core.Every.everyItem;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 import static org.openkilda.floodlight.Constants.inputPort;
 import static org.openkilda.floodlight.Constants.inputVlanId;
 import static org.openkilda.floodlight.Constants.meterId;
 import static org.openkilda.floodlight.Constants.outputPort;
 import static org.openkilda.floodlight.Constants.outputVlanId;
 import static org.openkilda.floodlight.Constants.transitVlanId;
+import static org.openkilda.floodlight.pathverification.PathVerificationService.LATENCY_PACKET_UDP_PORT;
 import static org.openkilda.floodlight.switchmanager.ISwitchManager.OVS_MANUFACTURER;
+import static org.openkilda.floodlight.switchmanager.SwitchManager.ROUND_TRIP_LATENCY_GROUP_ID;
 import static org.openkilda.floodlight.test.standard.PushSchemeOutputCommands.ofFactory;
 import static org.openkilda.model.Cookie.CATCH_BFD_RULE_COOKIE;
 import static org.openkilda.model.Cookie.DROP_RULE_COOKIE;
 import static org.openkilda.model.Cookie.DROP_VERIFICATION_LOOP_RULE_COOKIE;
+import static org.openkilda.model.Cookie.ROUND_TRIP_LATENCY_RULE_COOKIE;
 import static org.openkilda.model.Cookie.VERIFICATION_BROADCAST_RULE_COOKIE;
 import static org.openkilda.model.Cookie.VERIFICATION_UNICAST_RULE_COOKIE;
 import static org.openkilda.model.MeterId.MAX_SYSTEM_RULE_METER_ID;
@@ -86,26 +92,36 @@ import org.junit.Before;
 import org.junit.Test;
 import org.projectfloodlight.openflow.protocol.OFBarrierReply;
 import org.projectfloodlight.openflow.protocol.OFBarrierRequest;
+import org.projectfloodlight.openflow.protocol.OFBucket;
 import org.projectfloodlight.openflow.protocol.OFFlowMod;
 import org.projectfloodlight.openflow.protocol.OFFlowModCommand;
 import org.projectfloodlight.openflow.protocol.OFFlowStatsEntry;
 import org.projectfloodlight.openflow.protocol.OFFlowStatsReply;
 import org.projectfloodlight.openflow.protocol.OFFlowStatsRequest;
+import org.projectfloodlight.openflow.protocol.OFGroupAdd;
+import org.projectfloodlight.openflow.protocol.OFGroupDescStatsEntry;
+import org.projectfloodlight.openflow.protocol.OFGroupDescStatsReply;
+import org.projectfloodlight.openflow.protocol.OFGroupDescStatsRequest;
+import org.projectfloodlight.openflow.protocol.OFGroupType;
 import org.projectfloodlight.openflow.protocol.OFMeterConfig;
 import org.projectfloodlight.openflow.protocol.OFMeterConfigStatsReply;
 import org.projectfloodlight.openflow.protocol.OFMeterConfigStatsRequest;
 import org.projectfloodlight.openflow.protocol.OFMeterFlags;
 import org.projectfloodlight.openflow.protocol.OFMeterMod;
 import org.projectfloodlight.openflow.protocol.OFMeterModCommand;
+import org.projectfloodlight.openflow.protocol.action.OFActionOutput;
+import org.projectfloodlight.openflow.protocol.action.OFActionSetField;
 import org.projectfloodlight.openflow.protocol.match.MatchField;
 import org.projectfloodlight.openflow.protocol.meterband.OFMeterBandDrop;
 import org.projectfloodlight.openflow.types.DatapathId;
+import org.projectfloodlight.openflow.types.OFGroup;
+import org.projectfloodlight.openflow.types.OFPort;
+import org.projectfloodlight.openflow.types.TransportPort;
 import org.projectfloodlight.openflow.types.U64;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -170,17 +186,22 @@ public class SwitchManagerTest {
         OFFlowMod verificationUnicast = capture.get(VERIFICATION_UNICAST_RULE_COOKIE).getValue();
         OFFlowMod dropLoop = capture.get(DROP_VERIFICATION_LOOP_RULE_COOKIE).getValue();
         OFFlowMod catchRule = capture.get(CATCH_BFD_RULE_COOKIE).getValue();
+        OFFlowMod roundTrip = capture.get(ROUND_TRIP_LATENCY_RULE_COOKIE).getValue();
 
         assertEquals(scheme.installDropFlowRule(), dropFlow);
-        assertEquals(scheme.installVerificationBroadcastRule(defaultDpid), verificationBroadcast);
+        assertEquals(scheme.installVerificationBroadcastRuleWithRoundTripLatency(), verificationBroadcast);
         assertEquals(scheme.installVerificationUnicastRule(defaultDpid), verificationUnicast);
         assertEquals(scheme.installDropLoopRule(defaultDpid), dropLoop);
         assertEquals(scheme.installBfdCatchRule(defaultDpid), catchRule);
+        assertEquals(scheme.installRoundTripLatencyRule(defaultDpid), roundTrip);
     }
 
     private Map<Long, Capture<OFFlowMod>> prepareForDefaultRuleInstall() throws Exception {
-        ListenableFuture<List<OFMeterConfigStatsReply>> ofStatsFuture = mock(ListenableFuture.class);
-        OFMeterConfigStatsReply statsReply = mock(OFMeterConfigStatsReply.class);
+        ListenableFuture<List<OFMeterConfigStatsReply>> ofMeterFuture = mock(ListenableFuture.class);
+        ListenableFuture<List<OFGroupDescStatsReply>> ofGroupFuture = mock(ListenableFuture.class);
+        OFMeterConfigStatsReply meterReply = mock(OFMeterConfigStatsReply.class);
+        OFGroupDescStatsReply groupReply = mock(OFGroupDescStatsReply.class);
+        mockGetGroupsRequest(ImmutableList.of(ROUND_TRIP_LATENCY_GROUP_ID));
         mockGetMetersRequest(ImmutableList.of(meterId), true, 10L);
 
         Capture<OFFlowMod> captureDropFlow = EasyMock.newCapture();
@@ -188,40 +209,52 @@ public class SwitchManagerTest {
         Capture<OFFlowMod> captureVerificationUnicast = EasyMock.newCapture();
         Capture<OFFlowMod> captureDropLoop = EasyMock.newCapture();
         Capture<OFFlowMod> captureBfdCatch = EasyMock.newCapture();
+        Capture<OFFlowMod> captureRoundTripCatch = EasyMock.newCapture();
 
         expect(ofSwitchService.getActiveSwitch(defaultDpid)).andStubReturn(iofSwitch);
 
         expect(iofSwitch.getOFFactory()).andStubReturn(ofFactory);
         expect(iofSwitch.getId()).andReturn(defaultDpid).times(10);
         expect(iofSwitch.getSwitchDescription()).andStubReturn(switchDescription);
-        expect(iofSwitch.writeStatsRequest(anyObject(OFMeterConfigStatsRequest.class))).andStubReturn(ofStatsFuture);
+        expect(iofSwitch.writeStatsRequest(isA(OFMeterConfigStatsRequest.class))).andStubReturn(ofMeterFuture);
+        expect(iofSwitch.writeStatsRequest(isA(OFGroupDescStatsRequest.class))).andStubReturn(ofGroupFuture);
         expect(iofSwitch.write(capture(captureDropFlow))).andReturn(true).times(1);
         expect(iofSwitch.write(capture(captureVerificationBroadcast))).andReturn(true).times(2);
         expect(iofSwitch.write(capture(captureVerificationUnicast))).andReturn(true).times(2);
         expect(iofSwitch.write(capture(captureDropLoop))).andReturn(true).times(1);
         expect(iofSwitch.write(capture(captureBfdCatch))).andReturn(true).times(1);
+        expect(iofSwitch.write(capture(captureRoundTripCatch))).andReturn(true).times(1);
 
         expect(iofSwitch.write(anyObject(OFMeterMod.class))).andReturn(true).times(6);
         expect(iofSwitch.writeRequest(anyObject(OFBarrierRequest.class)))
                 .andReturn(Futures.immediateFuture(createMock(OFBarrierReply.class))).times(2);
 
-        expect(ofStatsFuture.get(anyLong(), anyObject())).andStubReturn(Collections.singletonList(statsReply));
+        expect(ofMeterFuture.get(anyLong(), anyObject())).andStubReturn(Collections.singletonList(meterReply));
+        expect(ofGroupFuture.get(anyLong(), anyObject())).andStubReturn(Collections.singletonList(groupReply));
 
         expect(switchDescription.getManufacturerDescription()).andReturn("").times(6);
-        expect(featureDetectorService.detectSwitch(iofSwitch)).andStubReturn(Collections.singleton(Feature.BFD));
+        expect(featureDetectorService.isSwitchSupportsFeature(iofSwitch, Feature.BFD)).andStubReturn(true);
+        expect(featureDetectorService.isSwitchSupportsFeature(iofSwitch, Feature.NOVIFLOW_COPY_FIELD))
+                .andStubReturn(true);
         expectLastCall();
 
         replay(ofSwitchService);
         replay(iofSwitch);
-        replay(ofStatsFuture);
-        replay(statsReply);
+        replay(ofMeterFuture);
+        replay(ofGroupFuture);
+        replay(meterReply);
+        replay(groupReply);
         replay(switchDescription);
         replay(featureDetectorService);
-        return ImmutableMap.of(DROP_RULE_COOKIE, captureDropFlow,
-                VERIFICATION_BROADCAST_RULE_COOKIE, captureVerificationBroadcast,
-                VERIFICATION_UNICAST_RULE_COOKIE, captureVerificationUnicast,
-                DROP_VERIFICATION_LOOP_RULE_COOKIE, captureDropLoop,
-                CATCH_BFD_RULE_COOKIE, captureBfdCatch);
+
+        return new ImmutableMap.Builder<Long, Capture<OFFlowMod>>()
+                .put(DROP_RULE_COOKIE, captureDropFlow)
+                .put(VERIFICATION_BROADCAST_RULE_COOKIE, captureVerificationBroadcast)
+                .put(VERIFICATION_UNICAST_RULE_COOKIE, captureVerificationUnicast)
+                .put(DROP_VERIFICATION_LOOP_RULE_COOKIE, captureDropLoop)
+                .put(CATCH_BFD_RULE_COOKIE, captureBfdCatch)
+                .put(ROUND_TRIP_LATENCY_RULE_COOKIE, captureRoundTripCatch)
+                .build();
     }
 
     @Test
@@ -1022,15 +1055,54 @@ public class SwitchManagerTest {
         expect(iofSwitch.getSwitchDescription()).andStubReturn(switchDescription);
         expect(iofSwitch.getId()).andStubReturn(dpid);
         expect(switchDescription.getManufacturerDescription()).andStubReturn(StringUtils.EMPTY);
+        expect(switchDescription.getSoftwareDescription()).andStubReturn(StringUtils.EMPTY);
         Capture<OFFlowMod> capture = EasyMock.newCapture();
         expect(iofSwitch.write(capture(capture))).andStubReturn(true);
-        expect(featureDetectorService.detectSwitch(iofSwitch)).andReturn(new HashSet<Feature>());
+        expect(featureDetectorService.isSwitchSupportsFeature(iofSwitch, Feature.BFD)).andStubReturn(true);
+        expect(featureDetectorService.isSwitchSupportsFeature(iofSwitch, Feature.NOVIFLOW_COPY_FIELD))
+                .andStubReturn(true);
         mockBarrierRequest();
         mockGetMetersRequest(Lists.newArrayList(unicastMeterId, broadcastMeterId), true, expectedRate);
+        mockGetGroupsRequest(Lists.newArrayList(ROUND_TRIP_LATENCY_GROUP_ID));
         replay(ofSwitchService, iofSwitch, switchDescription, featureDetectorService);
 
         switchManager.installDefaultRules(iofSwitch.getId());
     }
+
+    @Test
+    public void validateRoundTripLatencyGroup() {
+        OFGroupAdd groupAdd = getOfGroupAddInstruction();
+        assertTrue(runValidateRoundTripLatencyGroup(groupAdd.getBuckets()));
+    }
+
+    @Test
+    public void validateRoundTripLatencyGroupInvalidGroupId() {
+        OFGroupAdd groupAdd = getOfGroupAddInstruction();
+        assertFalse(runValidateRoundTripLatencyGroup(123, groupAdd.getBuckets()));
+    }
+
+    private OFGroupAdd getOfGroupAddInstruction() {
+        expect(iofSwitch.getOFFactory()).andStubReturn(ofFactory);
+        expect(iofSwitch.getId()).andStubReturn(dpid);
+        replay(iofSwitch);
+
+        return switchManager.getInstallRoundTripLatencyGroupInstruction(iofSwitch);
+    }
+
+    private boolean runValidateRoundTripLatencyGroup(List<OFBucket> buckets) {
+        return runValidateRoundTripLatencyGroup(ROUND_TRIP_LATENCY_GROUP_ID, buckets);
+    }
+
+    private boolean runValidateRoundTripLatencyGroup(int groupId, List<OFBucket> buckets) {
+        OFGroupDescStatsEntry entry = ofFactory.buildGroupDescStatsEntry()
+                .setGroup(OFGroup.of(groupId))
+                .setGroupType(OFGroupType.ALL)
+                .setBuckets(buckets)
+                .build();
+
+        return switchManager.validateRoundTripLatencyGroup(dpid, entry);
+    }
+
 
     private void mockBarrierRequest() throws InterruptedException, ExecutionException, TimeoutException {
         OFBarrierReply ofBarrierReply = mock(OFBarrierReply.class);
@@ -1067,7 +1139,7 @@ public class SwitchManagerTest {
         expect(ofStatsFuture.get(anyLong(), anyObject())).andStubReturn(singletonList(ofFlowStatsReply));
         replay(ofStatsFuture);
 
-        expect(iofSwitch.writeStatsRequest(anyObject(OFFlowStatsRequest.class))).andReturn(ofStatsFuture);
+        expect(iofSwitch.writeStatsRequest(isA(OFFlowStatsRequest.class))).andReturn(ofStatsFuture);
     }
 
 
@@ -1134,7 +1206,51 @@ public class SwitchManagerTest {
         expect(ofStatsFuture.get(anyLong(), anyObject())).andStubReturn(Collections.singletonList(statsReply));
 
         replay(statsReply, ofStatsFuture);
-        expect(iofSwitch.writeStatsRequest(anyObject(OFMeterConfigStatsRequest.class)))
+        expect(iofSwitch.writeStatsRequest(isA(OFMeterConfigStatsRequest.class)))
                 .andStubReturn(ofStatsFuture);
+    }
+
+    private void mockGetGroupsRequest(List<Integer> groupIds) throws Exception {
+        List<OFGroupDescStatsEntry> meterConfigs = new ArrayList<>(groupIds.size());
+        for (Integer groupId : groupIds) {
+            OFBucket firstBucket = mock(OFBucket.class);
+            OFBucket secondBucket = mock(OFBucket.class);
+
+            OFActionSetField setDestMacAction = ofFactory.actions()
+                    .buildSetField()
+                    .setField(ofFactory.oxms()
+                            .buildEthDst()
+                            .setValue(switchManager.dpIdToMac(dpid))
+                            .build())
+                    .build();
+
+            OFActionOutput sendToControllerAction = ofFactory.actions().output(OFPort.CONTROLLER, 0xFFFFFFFF);
+            TransportPort udpPort = TransportPort.of(LATENCY_PACKET_UDP_PORT);
+            OFActionSetField setUdpSrcAction = ofFactory.actions().setField(ofFactory.oxms().udpSrc(udpPort));
+            OFActionSetField setUdpDstAction = ofFactory.actions().setField(ofFactory.oxms().udpDst(udpPort));
+            OFActionOutput sendInPortAction = ofFactory.actions().output(OFPort.IN_PORT, 0xFFFFFFFF);
+
+            expect(firstBucket.getActions()).andStubReturn(
+                    Lists.newArrayList(setDestMacAction, sendToControllerAction));
+            expect(secondBucket.getActions()).andStubReturn(
+                    Lists.newArrayList(setUdpSrcAction, setUdpDstAction, sendInPortAction));
+
+            OFGroupDescStatsEntry groupEntry = mock(OFGroupDescStatsEntry.class);
+            expect(groupEntry.getGroup()).andStubReturn(OFGroup.of(groupId));
+            expect(groupEntry.getBuckets()).andStubReturn(Lists.newArrayList(firstBucket, secondBucket));
+
+            replay(firstBucket,  secondBucket, groupEntry);
+            meterConfigs.add(groupEntry);
+        }
+
+        OFGroupDescStatsReply statsReply = mock(OFGroupDescStatsReply.class);
+        expect(statsReply.getEntries()).andStubReturn(meterConfigs);
+
+        ListenableFuture<List<OFGroupDescStatsReply>> ofStatsFuture = mock(ListenableFuture.class);
+        expect(ofStatsFuture.get(anyLong(), anyObject())).andStubReturn(Collections.singletonList(statsReply));
+
+        expect(iofSwitch.writeStatsRequest(isA(OFGroupDescStatsRequest.class)))
+                .andStubReturn(ofStatsFuture);
+        replay(statsReply, ofStatsFuture);
     }
 }
