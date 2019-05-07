@@ -579,11 +579,9 @@ public class CrudBolt extends BaseRichBolt implements ICtrlBolt {
             featureTogglesService.checkFeatureToggleEnabled(FeatureToggle.UPDATE_FLOW);
 
             SwapFlowEndpointRequest request = (SwapFlowEndpointRequest) message.getData();
-            UnidirectionalFlow firstFlow = FlowMapper.INSTANCE.map(request.getFirstFlow());
-            UnidirectionalFlow secondFlow = FlowMapper.INSTANCE.map(request.getSecondFlow());
 
             List<FlowPair> flowPairs =
-                    flowService.swapFlowEnpoints(firstFlow.getFlowEntity(), secondFlow.getFlowEntity(),
+                    flowService.swapFlowEnpoints(request.getFirstFlow(), request.getSecondFlow(),
                             new FlowCommandSenderImpl(message.getCorrelationId(), tuple, StreamType.UPDATE));
 
             logger.info("Swap endpoint");
@@ -594,6 +592,9 @@ public class CrudBolt extends BaseRichBolt implements ICtrlBolt {
             // TODO (vborisovskii): Change INTERNAL_ERROR to ErrorType.NOT_PERMITTED after merge #2250
             throw new MessageException(message.getCorrelationId(), System.currentTimeMillis(),
                     ErrorType.INTERNAL_ERROR, errorType, "Feature toggles not enabled for UPDATE_FLOW operation.");
+        } catch (FlowNotFoundException e) {
+            throw new MessageException(message.getCorrelationId(), System.currentTimeMillis(),
+                    ErrorType.NOT_FOUND, errorType, e.getMessage());
         } catch (Exception e) {
             logger.error("Unhandled exception on SWAP operation");
             throw new MessageException(message.getCorrelationId(), System.currentTimeMillis(),
@@ -750,7 +751,7 @@ public class CrudBolt extends BaseRichBolt implements ICtrlBolt {
 
     private SwapFlowResponse buildSwapFlowResponse(List<FlowPair> flows) {
         return new SwapFlowResponse(buildFlowResponse(flows.get(0).getForward()),
-                buildFlowResponse(flows.get(0).getForward()));
+                buildFlowResponse(flows.get(1).getForward()));
     }
 
     private ErrorMessage buildErrorMessage(String correlationId, ErrorData errorData) {
