@@ -199,8 +199,6 @@ class FlowHelper {
      * @param flowId
      */
     void verifyRulesOnProtectedFlow(String flowId) {
-        // TODO (andriidovhan) add possibility to use this method when we have more than 1 flow on a switch
-        // then update addFlow/deleteFlow/updateFlow
         def flowPathInfo = northbound.getFlowPath(flowId)
         def mainFlowPath = flowPathInfo.forwardPath
         def srcMainSwitch = mainFlowPath[0]
