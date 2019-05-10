@@ -104,8 +104,14 @@ class ProtectedPathSpec extends BaseSpecification {
                     !Cookie.isDefaultRule(it.cookie)
                 }
 
-                assert flowHelper.findForwardPathRules(rules, sw).size() == 0
-                assert flowHelper.findReversePathRules(rules, sw).size() == 0
+                assert !rules.findAll {
+                    it.match.inPort == sw.inputPort.toString() &&
+                            it.instructions.applyActions.flowOutput == sw.outputPort.toString()
+                }
+                assert !rules.findAll {
+                    it.instructions?.applyActions?.flowOutput == sw.inputPort.toString() &&
+                            it.match.inPort == sw.outputPort.toString()
+                }
             }
         }
 

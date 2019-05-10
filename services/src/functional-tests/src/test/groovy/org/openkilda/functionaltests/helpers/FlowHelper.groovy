@@ -193,11 +193,11 @@ class FlowHelper {
     }
 
     /**
-     * Check that all needed rules are created for a flow with protected path.
+     * Check that all needed rules are created for a flow with protected path.<br>
      * Protected path creates the 'egress' rule only on the src and dst switches
-     * and creates 2 rules(input/output) on the transit switches
-     * if (switchId == src/dst): 2 rules for main flow path + 1 egress for protected path = 3
-     * if (switchId != src/dst): 2 rules for main flow path + 2 rules for protected path = 4
+     * and creates 2 rules(input/output) on the transit switches.<br>
+     * if (switchId == src/dst): 2 rules for main flow path + 1 egress for protected path = 3<br>
+     * if (switchId != src/dst): 2 rules for main flow path + 2 rules for protected path = 4<br>
      *
      * @param flowId
      */
@@ -224,17 +224,13 @@ class FlowHelper {
         def rulesOnSrcSwitch = northbound.getSwitchRules(srcMainSwitch.switchId).flowEntries.findAll {
             !Cookie.isDefaultRule(it.cookie)
         }*.cookie
-        assert rulesOnSrcSwitch.contains(mainForwardCookie)
-        assert rulesOnSrcSwitch.contains(mainReverseCookie)
+        assert rulesOnSrcSwitch.containsAll([mainForwardCookie, mainReverseCookie, protectedReverseCookie])
         assert !rulesOnSrcSwitch.contains(protectedForwardCookie)
-        assert rulesOnSrcSwitch.contains(protectedReverseCookie)
 
         def rulesOnDstSwitch = northbound.getSwitchRules(dstMainSwitch.switchId).flowEntries.findAll {
             !Cookie.isDefaultRule(it.cookie)
         }*.cookie
-        assert rulesOnDstSwitch.contains(mainForwardCookie)
-        assert rulesOnDstSwitch.contains(mainReverseCookie)
-        assert rulesOnDstSwitch.contains(protectedForwardCookie)
+        assert rulesOnDstSwitch.containsAll([mainForwardCookie, mainReverseCookie, protectedForwardCookie])
         assert !rulesOnDstSwitch.contains(protectedReverseCookie)
 
         //this loop checks rules on common nodes(except src and dst switches)
@@ -242,10 +238,8 @@ class FlowHelper {
             def rules = northbound.getSwitchRules(sw).flowEntries.findAll {
                 !Cookie.isDefaultRule(it.cookie)
             }
-            assert rules.contains(mainForwardCookie)
-            assert rules.contains(mainReverseCookie)
-            assert rules.contains(protectedForwardCookie)
-            assert rules.contains(protectedReverseCookie)
+            assert rules.containsAll([mainForwardCookie, mainReverseCookie,
+                                      protectedForwardCookie, protectedReverseCookie])
         } || true
 
         def uniqueTransitSwitches = protectedFlowTransitSwitches.findAll { !commonSwitches.contains(it.switchId) } +
@@ -257,27 +251,11 @@ class FlowHelper {
                 !Cookie.isDefaultRule(it.cookie)
             }*.cookie
             if (mainFlowPath.find { it.switchId == node.switchId }) {
-                assert rules.contains(mainForwardCookie)
-                assert rules.contains(mainReverseCookie)
-            }else {
-                assert rules.contains(protectedForwardCookie)
-                assert rules.contains(protectedReverseCookie)
+                assert rules.containsAll([mainForwardCookie, mainReverseCookie])
+            } else {
+                assert rules.containsAll([protectedForwardCookie, protectedReverseCookie])
             }
         } || true
-    }
-
-    static List<FlowEntry> findForwardPathRules(List<FlowEntry> rules, PathNodePayload node) {
-        return rules.findAll {
-            it.match.inPort == node.inputPort.toString() &&
-                    it.instructions.applyActions.flowOutput == node.outputPort.toString()
-        }
-    }
-
-    static List<FlowEntry> findReversePathRules(List<FlowEntry> rules, PathNodePayload node) {
-        return rules.findAll {
-            it.instructions?.applyActions?.flowOutput == node.inputPort.toString() &&
-                    it.match.inPort == node.outputPort.toString()
-        }
     }
 
     /**
