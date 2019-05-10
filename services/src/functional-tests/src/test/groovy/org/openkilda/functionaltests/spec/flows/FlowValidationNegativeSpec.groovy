@@ -4,7 +4,6 @@ import static org.openkilda.testing.Constants.NON_EXISTENT_FLOW_ID
 
 import org.openkilda.functionaltests.BaseSpecification
 import org.openkilda.messaging.error.MessageError
-import org.openkilda.messaging.model.FlowDto
 import org.openkilda.model.SwitchId
 import org.openkilda.northbound.dto.v1.flows.FlowValidationDto
 
@@ -41,10 +40,10 @@ class FlowValidationNegativeSpec extends BaseSpecification {
         assert damagedFlowSwitches.equals(intactFlowSwitches)
 
         when: "#flowType flow rule from first flow on #switchNo switch gets deleted"
-        FlowDto damagedFlow = flowType == "forward" ? database.getFlow(flowToBreak.id).left :
-                database.getFlow(flowToBreak.id).right
+        def cookieToDelete = flowType == "forward" ? database.getFlow(flowToBreak.id).forwardPath.cookie.value :
+                database.getFlow(flowToBreak.id).reversePath.cookie.value
         SwitchId damagedSwitch = damagedFlowSwitches[item]
-        northbound.deleteSwitchRules(damagedSwitch, damagedFlow.cookie)
+        northbound.deleteSwitchRules(damagedSwitch, cookieToDelete)
 
         then: "Intact flow should be validated successfully"
         northbound.validateFlow(intactFlow.id).every { isFlowValid(it) }
@@ -58,7 +57,7 @@ class FlowValidationNegativeSpec extends BaseSpecification {
         and: "Flow rule discrepancy should contain dpID of the affected switch and cookie of the damaged flow"
         def rules = findRulesDiscrepancies(invalidFlow[0])
         rules.size() == 1
-        rules[damagedSwitch.toString()] == damagedFlow.cookie.toString()
+        rules[damagedSwitch.toString()] == cookieToDelete.toString()
 
         and: "Validation of non-affected flow should succeed"
         northbound.validateFlow(intactFlow.id).every { isFlowValid(it) }
@@ -66,7 +65,7 @@ class FlowValidationNegativeSpec extends BaseSpecification {
         and: "Affected switch should have one missing rule with the same cookie as the damaged flow"
         def switchValidationResult = northbound.validateSwitchRules(damagedSwitch)
         switchValidationResult.missingRules.size() == 1
-        switchValidationResult.missingRules[0] == damagedFlow.cookie
+        switchValidationResult.missingRules[0] == cookieToDelete
 
         and: "There should be no excess rules on the affected switch"
         switchValidationResult.excessRules.size() == 0

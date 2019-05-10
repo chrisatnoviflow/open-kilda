@@ -4,16 +4,13 @@ import static org.openkilda.testing.Constants.RULES_DELETION_TIME
 import static org.openkilda.testing.Constants.RULES_INSTALLATION_TIME
 import static org.openkilda.testing.Constants.WAIT_OFFSET
 
-import org.openkilda.messaging.info.rule.FlowEntry
 import org.openkilda.functionaltests.helpers.model.PotentialFlow
-import org.openkilda.messaging.model.FlowDto
-import org.openkilda.messaging.model.FlowPairDto
 import org.openkilda.messaging.payload.flow.FlowCreatePayload
 import org.openkilda.messaging.payload.flow.FlowEndpointPayload
 import org.openkilda.messaging.payload.flow.FlowPayload
 import org.openkilda.messaging.payload.flow.FlowState
-import org.openkilda.messaging.payload.flow.PathNodePayload
 import org.openkilda.model.Cookie
+import org.openkilda.model.Flow
 import org.openkilda.testing.model.topology.TopologyDefinition
 import org.openkilda.testing.model.topology.TopologyDefinition.Switch
 import org.openkilda.testing.service.database.Database
@@ -215,11 +212,11 @@ class FlowHelper {
         def commonSwitches = mainFlowPath*.switchId.intersect(protectedFlowPath*.switchId)
         def commonTransitSwitches = mainFlowTransitSwitches*.switchId.intersect(protectedFlowTransitSwitches*.switchId)
 
-        def flowInfo = db.getFlow2(flowId)
-        def mainForwardCookie = flowInfo.value.forwardPath.cookie.value
-        def mainReverseCookie = flowInfo.value.reversePath.cookie.value
-        def protectedForwardCookie = flowInfo.value.protectedForwardPath.cookie.value
-        def protectedReverseCookie = flowInfo.value.protectedReversePath.cookie.value
+        def flowInfo = db.getFlow(flowId)
+        def mainForwardCookie = flowInfo.forwardPath.cookie.value
+        def mainReverseCookie = flowInfo.reversePath.cookie.value
+        def protectedForwardCookie = flowInfo.protectedForwardPath.cookie.value
+        def protectedReverseCookie = flowInfo.protectedReversePath.cookie.value
 
         def rulesOnSrcSwitch = northbound.getSwitchRules(srcMainSwitch.switchId).flowEntries.findAll {
             !Cookie.isDefaultRule(it.cookie)
@@ -297,9 +294,12 @@ class FlowHelper {
     /**
      * Checks flow rules presence (or absence) on source and destination switches.
      */
-    private void checkRulesOnSwitches(FlowPairDto<FlowDto, FlowDto> flowEntry, int timeout, boolean rulesPresent) {
-        def cookies = [flowEntry.left.cookie, flowEntry.right.cookie]
-        def switches = [flowEntry.left.sourceSwitch, flowEntry.left.destinationSwitch].toSet()
+    private void checkRulesOnSwitches(Flow flowEntry, int timeout, boolean rulesPresent) {
+//    private void checkRulesOnSwitches(FlowPairDto<FlowDto, FlowDto> flowEntry, int timeout, boolean rulesPresent) {
+//        def cookies = [flowEntry.left.cookie, flowEntry.right.cookie]
+//        def switches = [flowEntry.left.sourceSwitch, flowEntry.left.destinationSwitch].toSet()
+        def cookies = [flowEntry.forwardPath.cookie.value, flowEntry.reversePath.cookie.value]
+        def switches = [flowEntry.srcSwitch.switchId, flowEntry.destSwitch.switchId].toSet()
         switches.each { sw ->
             Wrappers.wait(timeout) {
                 try {

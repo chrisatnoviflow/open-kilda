@@ -296,18 +296,11 @@ public class DatabaseSupportImpl implements Database {
      * Get flow.
      *
      * @param flowId flow ID
-     * @return FlowPair object
+     * @return Flow
      */
     @Override
-    public FlowPairDto<FlowDto, FlowDto> getFlow(String flowId) {
-        Optional<FlowPair> flowPair = flowPairRepository.findById(flowId);
-        return flowPair
-                .map(flow -> new FlowPairDto<>(convert(flow.getForward()), convert(flow.getReverse())))
-                .orElse(null);
-    }
-
-    public Optional<Flow> getFlow2(String flowId) {
-        return flowRepository.findById(flowId);
+    public Flow getFlow(String flowId) {
+        return flowRepository.findById(flowId).get();
     }
 
     /**
