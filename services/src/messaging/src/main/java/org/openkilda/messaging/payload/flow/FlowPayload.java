@@ -76,6 +76,9 @@ public class FlowPayload implements Serializable {
     @JsonProperty("priority")
     private Integer priority;
 
+    @JsonProperty("encapsulation-type")
+    private String encapsulationType;
+
     /**
      * Instance constructor.
      *
@@ -91,6 +94,7 @@ public class FlowPayload implements Serializable {
      * @param status           flow status
      * @param maxLatency       max latency
      * @param priority         flow priority
+     * @param encapsulationType flow encapsulation type
      */
     @Builder
     @JsonCreator
@@ -105,7 +109,8 @@ public class FlowPayload implements Serializable {
                        @JsonProperty("last-updated") String lastUpdated,
                        @JsonProperty("status") String status,
                        @JsonProperty("max-latency") Integer maxLatency,
-                       @JsonProperty("priority") Integer priority) {
+                       @JsonProperty("priority") Integer priority,
+                       @JsonProperty("encapsulation-type") String encapsulationType) {
         setId(id);
         setSource(source);
         setDestination(destination);
@@ -124,6 +129,7 @@ public class FlowPayload implements Serializable {
         this.status = status;
         this.maxLatency = maxLatency;
         this.priority = priority;
+        this.encapsulationType = encapsulationType;
     }
 
     /**

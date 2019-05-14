@@ -53,6 +53,7 @@ import org.openkilda.messaging.nbtopology.request.GetFlowPathRequest;
 import org.openkilda.messaging.nbtopology.response.GetFlowPathResponse;
 import org.openkilda.messaging.payload.flow.DiverseGroupPayload;
 import org.openkilda.messaging.payload.flow.FlowCreatePayload;
+import org.openkilda.messaging.payload.flow.FlowEncapsulationType;
 import org.openkilda.messaging.payload.flow.FlowIdStatusPayload;
 import org.openkilda.messaging.payload.flow.FlowPathPayload;
 import org.openkilda.messaging.payload.flow.FlowPayload;
@@ -215,7 +216,18 @@ public class FlowServiceImpl implements FlowService {
         final String correlationId = RequestCorrelationId.getId();
         logger.info("Create flow: {}", input);
 
-        FlowCreateRequest payload = new FlowCreateRequest(new FlowDto(input), input.getDiverseFlowId());
+        FlowEncapsulationType encapsulationType;
+        try {
+            encapsulationType = input.getEncapsulationType() != null ? FlowEncapsulationType.valueOf(
+                    input.getEncapsulationType().toUpperCase()) : null;
+        } catch (IllegalArgumentException e) {
+            logger.error("Can not parse arguments: {}", e.getMessage());
+            throw new MessageException(correlationId, System.currentTimeMillis(), ErrorType.DATA_INVALID,
+                    e.getMessage(), "Can not parse arguments when create flow request");
+        }
+
+        FlowCreateRequest payload =
+                new FlowCreateRequest(new FlowDto(input, encapsulationType), input.getDiverseFlowId());
         CommandMessage request = new CommandMessage(
                 payload, System.currentTimeMillis(), correlationId, Destination.WFM);
 
@@ -245,7 +257,18 @@ public class FlowServiceImpl implements FlowService {
         final String correlationId = RequestCorrelationId.getId();
         logger.info("Update flow request for flow {}", input.getId());
 
-        FlowUpdateRequest payload = new FlowUpdateRequest(new FlowDto(input), input.getDiverseFlowId());
+        FlowEncapsulationType encapsulationType;
+        try {
+            encapsulationType = input.getEncapsulationType() != null ? FlowEncapsulationType.valueOf(
+                    input.getEncapsulationType().toUpperCase()) : null;
+        } catch (IllegalArgumentException e) {
+            logger.error("Can not parse arguments: {}", e.getMessage());
+            throw new MessageException(correlationId, System.currentTimeMillis(), ErrorType.DATA_INVALID,
+                    e.getMessage(), "Can not parse arguments when update flow request");
+        }
+
+        FlowUpdateRequest payload =
+                new FlowUpdateRequest(new FlowDto(input, encapsulationType), input.getDiverseFlowId());
         CommandMessage request = new CommandMessage(
                 payload, System.currentTimeMillis(), correlationId, Destination.WFM);
 

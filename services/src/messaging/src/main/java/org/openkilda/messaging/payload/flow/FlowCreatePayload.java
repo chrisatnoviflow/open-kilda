@@ -61,9 +61,10 @@ public class FlowCreatePayload extends FlowPayload {
                              @JsonProperty("diverse-flowid") String diverseFlowId,
                              @JsonProperty("status") String status,
                              @JsonProperty("max-latency") Integer maxLatency,
-                             @JsonProperty("priority") Integer priority) {
+                             @JsonProperty("priority") Integer priority,
+                             @JsonProperty("encapsulation_type") String encapsulationType) {
         super(id, source, destination, maximumBandwidth, ignoreBandwidth, periodicPings, description, created,
-                lastUpdated, status, maxLatency, priority);
+                lastUpdated, status, maxLatency, priority, encapsulationType);
         this.diverseFlowId = diverseFlowId;
     }
 }

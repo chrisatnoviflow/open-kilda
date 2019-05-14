@@ -13,10 +13,10 @@
  *   limitations under the License.
  */
 
-package org.openkilda.model;
+package org.openkilda.messaging.payload.flow;
 
 /**
- * Represents flow encapsulation types.
+ * Class represents flow encapsulation type.
  */
 public enum FlowEncapsulationType {
     TRANSIT_VLAN,

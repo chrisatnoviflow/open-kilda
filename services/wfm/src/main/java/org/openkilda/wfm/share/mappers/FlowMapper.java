@@ -187,6 +187,21 @@ public abstract class FlowMapper {
         }
     }
 
+    /**
+     * Convert {@link org.openkilda.messaging.payload.flow.FlowEncapsulationType} to {@link FlowEncapsulationType}.
+     */
+    public FlowEncapsulationType map(org.openkilda.messaging.payload.flow.FlowEncapsulationType encapsulationType) {
+        return encapsulationType != null ? FlowEncapsulationType.valueOf(encapsulationType.name()) : null;
+    }
+
+    /**
+     * Convert {@link FlowEncapsulationType} to {@link org.openkilda.messaging.payload.flow.FlowEncapsulationType}.
+     */
+    public org.openkilda.messaging.payload.flow.FlowEncapsulationType map(FlowEncapsulationType encapsulationType) {
+        return encapsulationType != null ? org.openkilda.messaging.payload.flow.FlowEncapsulationType.valueOf(
+                encapsulationType.name()) : null;
+    }
+
     private FlowPath buildPath(Flow flow, FlowDto flowDto) {
         Switch srcSwitch = Switch.builder().switchId(flowDto.getSourceSwitch()).build();
         Switch destSwitch = Switch.builder().switchId(flowDto.getDestinationSwitch()).build();
@@ -223,8 +238,7 @@ public abstract class FlowMapper {
                 .bandwidth(flow.getBandwidth())
                 .ignoreBandwidth(flow.isIgnoreBandwidth())
                 .periodicPings(flow.isPeriodicPings())
-                //TODO: hard-coded encapsulation will be removed in Flow H&S
-                .encapsulationType(FlowEncapsulationType.TRANSIT_VLAN)
+                .encapsulationType(map(flow.getEncapsulationType()))
                 .maxLatency(flow.getMaxLatency())
                 .priority(flow.getPriority())
                 .timeCreate(map(flow.getCreatedTime()))

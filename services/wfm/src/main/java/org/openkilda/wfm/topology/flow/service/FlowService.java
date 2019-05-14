@@ -134,8 +134,6 @@ public class FlowService extends BaseFlowService {
         PathComputer pathComputer = pathComputerFactory.getPathComputer();
         PathPair pathPair = pathComputer.getPath(flow);
 
-        //TODO: hard-coded encapsulation will be removed in Flow H&S
-        flow.setEncapsulationType(FlowEncapsulationType.TRANSIT_VLAN);
         FlowResources flowResources = flowResourcesManager.allocateFlowResources(flow);
 
         // Build and store the flow with a path pair, use allocated resources for paths.
@@ -184,8 +182,6 @@ public class FlowService extends BaseFlowService {
             throw new FlowAlreadyExistException(flowId);
         }
 
-        //TODO: hard-coded encapsulation will be removed in Flow H&S
-        flow.setEncapsulationType(FlowEncapsulationType.TRANSIT_VLAN);
         FlowResources flowResources = flowResourcesManager.allocateFlowResources(flow);
 
         // Store the flow, use allocated resources for paths.
@@ -353,8 +349,6 @@ public class FlowService extends BaseFlowService {
                                                             PathPair newPathPair, FlowCommandSender sender)
             throws ResourceAllocationException {
 
-        //TODO: hard-coded encapsulation will be removed in Flow H&S
-        updatingFlow.setEncapsulationType(FlowEncapsulationType.TRANSIT_VLAN);
         FlowResources flowResources = flowResourcesManager.allocateFlowResources(updatingFlow);
 
         // Recreate the flow, use allocated resources for new paths.
@@ -601,7 +595,7 @@ public class FlowService extends BaseFlowService {
         Flow copied = flow.toBuilder()
                 .srcSwitch(switchRepository.reload(flow.getSrcSwitch()))
                 .destSwitch(switchRepository.reload(flow.getDestSwitch()))
-                .encapsulationType(FlowEncapsulationType.TRANSIT_VLAN)
+                .encapsulationType(flow.getEncapsulationType())
                 .timeModify(timeModify)
                 .status(status)
                 .build();
