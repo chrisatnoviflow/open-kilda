@@ -18,6 +18,7 @@ import org.openkilda.testing.service.floodlight.FloodlightService
 import org.openkilda.testing.service.grpc.GrpcService
 import org.openkilda.testing.service.lockkeeper.LockKeeperService
 import org.openkilda.testing.service.northbound.NorthboundService
+import org.openkilda.testing.service.northbound.NorthboundServiceV2
 import org.openkilda.testing.service.otsdb.OtsdbQueryService
 import org.openkilda.testing.tools.IslUtils
 
@@ -33,6 +34,9 @@ class BaseSpecification extends SpringSpecification implements SetupOnce {
 
     @Autowired
     NorthboundService northbound
+
+    @Autowired
+    NorthboundServiceV2 northboundV2
 
     @Autowired
     FloodlightService floodlight
