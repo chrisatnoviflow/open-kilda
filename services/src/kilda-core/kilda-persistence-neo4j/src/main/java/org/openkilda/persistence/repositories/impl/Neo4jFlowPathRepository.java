@@ -364,8 +364,9 @@ public class Neo4jFlowPathRepository extends Neo4jGenericRepository<FlowPath> im
 
             // A segment must reference the same flow path.
             if (pathSegment.getPath() != flowPath) {
-                throw new IllegalArgumentException(format("Segment %s references different flow path, but expect %s",
-                        pathSegment, flowPath));
+                throw new IllegalArgumentException(
+                        format("Segment %s references different flow path %s, but expect %s",
+                        pathSegment, pathSegment.getPath(), flowPath));
             }
         });
     }

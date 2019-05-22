@@ -33,12 +33,10 @@ import com.google.common.collect.ImmutableMap;
 import lombok.extern.slf4j.Slf4j;
 import org.neo4j.ogm.cypher.ComparisonOperator;
 import org.neo4j.ogm.cypher.Filter;
-import org.neo4j.ogm.session.Session;
 
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -182,24 +180,7 @@ public class Neo4jFlowRepository extends Neo4jGenericRepository<Flow> implements
             flowPathRepository.lockInvolvedSwitches(Stream.concat(currentPaths.stream(), flow.getPaths().stream())
                     .toArray(FlowPath[]::new));
 
-            updatePaths(currentPaths, flow.getPaths());
-
             super.createOrUpdate(flow);
-        });
-    }
-
-    private void updatePaths(Collection<FlowPath> currentPaths, Collection<FlowPath> newPaths) {
-        Session session = getSession();
-
-        Set<Long> updatedEntities = newPaths.stream()
-                .map(session::resolveGraphIdFor)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet());
-
-        currentPaths.forEach(path -> {
-            if (!updatedEntities.contains(session.resolveGraphIdFor(path))) {
-                flowPathRepository.delete(path);
-            }
         });
     }
 
@@ -254,23 +235,13 @@ public class Neo4jFlowRepository extends Neo4jGenericRepository<Flow> implements
         requireManagedEntity(flow.getSrcSwitch());
         requireManagedEntity(flow.getDestSwitch());
 
-        // it must reference the same object.
-        FlowPath forwardPath = flow.getForwardPath();
-        if (forwardPath != null) {
-            if (forwardPath.getFlow() != flow) {
-                throw new IllegalArgumentException(format("Flow path %s references different flow, but expect %s",
-                        forwardPath, flow));
+        for (FlowPath path : flow.getPaths()) {
+            if (path.getFlow() != flow) {
+                // it must reference the same object.
+                throw new IllegalArgumentException(format("Flow path %s references different flow %s, but expect %s",
+                        path, path.getFlow(), flow));
             }
-            flowPathRepository.validateFlowPath(forwardPath);
-        }
-
-        FlowPath reversePath = flow.getReversePath();
-        if (reversePath != null) {
-            if (reversePath.getFlow() != flow) {
-                throw new IllegalArgumentException(format("Flow path %s references different flow, but expect %s",
-                        reversePath, flow));
-            }
-            flowPathRepository.validateFlowPath(reversePath);
+            flowPathRepository.validateFlowPath(path);
         }
     }
 }
