@@ -6,7 +6,6 @@ import static org.openkilda.testing.Constants.NON_EXISTENT_FLOW_ID
 import static org.openkilda.testing.Constants.WAIT_OFFSET
 
 import org.openkilda.functionaltests.BaseSpecification
-import org.openkilda.functionaltests.helpers.PathHelper
 import org.openkilda.functionaltests.helpers.SwitchHelper
 import org.openkilda.functionaltests.helpers.Wrappers
 import org.openkilda.messaging.error.MessageError
@@ -719,8 +718,8 @@ class ProtectedPathSpec extends BaseSpecification {
         def involvedTransitSwitches = (currentPath[1..-2].switchId + currentProtectedPath[1..-2].switchId).unique()
         Wrappers.wait(WAIT_OFFSET) {
             involvedTransitSwitches.each { switchId ->
-                def amountOfRules = (switchId in currentProtectedPath*.switchId && switchId in currentPath*.switchId)
-                        ? 4 : 2
+                def amountOfRules = (switchId in currentProtectedPath*.switchId &&
+                        switchId in currentPath*.switchId) ? 4 : 2
                 def switchValidateInfo = northbound.validateSwitch(switchId)
                 assert switchValidateInfo.rules.proper.size() == amountOfRules
                 switchHelper.verifyRuleSectionsAreEmpty(switchValidateInfo, ["missing", "excess"])
@@ -823,7 +822,7 @@ class ProtectedPathSpec extends BaseSpecification {
         northbound.portDown(currentIsls[0].dstSwitch.dpId, currentIsls[0].dstPort)
 
         then: "Flow state is still DOWN"
-        Wrappers.timedLoop(WAIT_OFFSET){ assert northbound.getFlowStatus(flow.id).status == FlowState.DOWN }
+        Wrappers.timedLoop(WAIT_OFFSET) { assert northbound.getFlowStatus(flow.id).status == FlowState.DOWN }
 
         when: "Try to swap paths when main/protected paths are not available"
         northbound.swapFlowPath(flow.id)
@@ -839,7 +838,7 @@ class ProtectedPathSpec extends BaseSpecification {
         northbound.portUp(currentIsls[0].dstSwitch.dpId, currentIsls[0].dstPort)
 
         then: "Flow state is still DOWN"
-        Wrappers.timedLoop(WAIT_OFFSET){ assert northbound.getFlowStatus(flow.id).status == FlowState.DOWN }
+        Wrappers.timedLoop(WAIT_OFFSET) { assert northbound.getFlowStatus(flow.id).status == FlowState.DOWN }
 
         when: "Try to swap paths when the main path is available and the protected path is not available"
         northbound.swapFlowPath(flow.id)
