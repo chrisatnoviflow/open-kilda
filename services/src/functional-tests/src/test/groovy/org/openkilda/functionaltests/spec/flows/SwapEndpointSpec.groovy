@@ -12,12 +12,12 @@ import spock.lang.Unroll
 class SwapEndpointSpec extends BaseSpecification {
 
     @Unroll
-    def "Able to swap #endpointPart for flows with the same source and destination switches"() {
+    def "Able to swap #endpointsPart (#description) for two flows with the same source and destination switches"() {
         given: "Two flows with the same source and destination switches"
         flowHelper.addFlow(flow1)
         flowHelper.addFlow(flow2)
 
-        when: "Try to swap #endpointPart for flows"
+        when: "Try to swap #endpointsPart for flows"
         def flow1Path = PathHelper.convert(northbound.getFlowPath(flow1.id))
         def flow2Path = PathHelper.convert(northbound.getFlowPath(flow2.id))
 
@@ -28,7 +28,7 @@ class SwapEndpointSpec extends BaseSpecification {
         def flow1Updated = northbound.getFlow(flow1.id)
         def flow2Updated = northbound.getFlow(flow2.id)
 
-        then: "#endpointPart.capitalize() are successfully swapped"
+        then: "#endpointsPart.capitalize() are successfully swapped"
         response.firstFlow.source == flow1Src
         response.firstFlow.destination == flow1Dst
         response.secondFlow.source == flow2Src
@@ -46,7 +46,8 @@ class SwapEndpointSpec extends BaseSpecification {
         [flow1, flow2].each { flowHelper.deleteFlow(it.id) }
 
         where:
-        endpointPart << ["vlans"] * 4 + ["ports"] * 4 + ["switches"] * 4
+        endpointsPart << ["vlans"] * 4 + ["ports"] * 4 + ["switches"] * 4
+        description << ["src <-> src", "dst <-> dst", "src <-> dst", "dst <-> src"] * 3
         switchPair << [getTopologyHelper().getNotNeighboringSwitchPair()] * 12
         flow1 << [getFlowHelper().randomFlow(switchPair)] * 12
         flow2 << [getFlowHelper().randomFlow(switchPair, false, [flow1])] * 12
@@ -82,7 +83,7 @@ class SwapEndpointSpec extends BaseSpecification {
     }
 
     @Unroll
-    def "Able to swap endpoints for flows with the same source and destination switches"() {
+    def "Able to swap endpoints (#description) for two flows with the same source and destination switches"() {
         given: "Two flows with the same source and destination switches"
         flowHelper.addFlow(flow1)
         flowHelper.addFlow(flow2)
@@ -116,6 +117,7 @@ class SwapEndpointSpec extends BaseSpecification {
         [flow1, flow2].each { flowHelper.deleteFlow(it.id) }
 
         where:
+        description << ["src <-> src", "dst <-> dst", "src <-> dst", "dst <-> src"]
         switchPair << [getTopologyHelper().getNotNeighboringSwitchPair()] * 4
         flow1 << [getFlowHelper().randomFlow(switchPair)] * 4
         flow2 << [getFlowHelper().randomFlow(switchPair, false, [flow1])] * 4
@@ -129,12 +131,13 @@ class SwapEndpointSpec extends BaseSpecification {
     }
 
     @Unroll
-    def "Able to swap #endpointPart for flows with the same source and different destination switches"() {
+    def "Able to swap #endpointsPart (#description) for two flows with the same source and different destination \
+switches"() {
         given: "Two flows with the same source and different destination switches"
         flowHelper.addFlow(flow1)
         flowHelper.addFlow(flow2)
 
-        when: "Try to swap #endpointPart for flows"
+        when: "Try to swap #endpointsPart for flows"
         def flow1Path = PathHelper.convert(northbound.getFlowPath(flow1.id))
         def flow2Path = PathHelper.convert(northbound.getFlowPath(flow2.id))
 
@@ -145,7 +148,7 @@ class SwapEndpointSpec extends BaseSpecification {
         def flow1Updated = northbound.getFlow(flow1.id)
         def flow2Updated = northbound.getFlow(flow2.id)
 
-        then: "#endpointPart.capitalize() are successfully swapped"
+        then: "#endpointsPart.capitalize() are successfully swapped"
         response.firstFlow.source == flow1Src
         response.firstFlow.destination == flow1Dst
         response.secondFlow.source == flow2Src
@@ -163,7 +166,8 @@ class SwapEndpointSpec extends BaseSpecification {
         [flow1, flow2].each { flowHelper.deleteFlow(it.id) }
 
         where:
-        endpointPart << ["vlans"] * 4 + ["ports"] * 4 + ["switches"] * 4
+        endpointsPart << ["vlans"] * 4 + ["ports"] * 4 + ["switches"] * 4
+        description << ["src <-> src", "dst <-> dst", "src <-> dst", "dst <-> src"] * 3
         flow1SwitchPair << [getTopologyHelper().getNotNeighboringSwitchPair()] * 12
         flow2SwitchPair << [getHalfDifferentNotNeighboringSwitchPair(flow1SwitchPair, "src", "dst")] * 12
         flow1 << [getFlowHelper().randomFlow(flow1SwitchPair)] * 12
@@ -200,7 +204,8 @@ class SwapEndpointSpec extends BaseSpecification {
     }
 
     @Unroll
-    def "Able to swap endpoints for flows with the same source and different destination switches"() {
+    def "Able to swap endpoints (#description) for two flows with the same source and different destination \
+switches"() {
         given: "Two flows with the same source and different destination switches"
         flowHelper.addFlow(flow1)
         flowHelper.addFlow(flow2)
@@ -234,6 +239,7 @@ class SwapEndpointSpec extends BaseSpecification {
         [flow1, flow2].each { flowHelper.deleteFlow(it.id) }
 
         where:
+        description << ["src <-> src", "dst <-> dst", "src <-> dst", "dst <-> src"]
         flow1SwitchPair << [getTopologyHelper().getNotNeighboringSwitchPair()] * 4
         flow2SwitchPair << [getHalfDifferentNotNeighboringSwitchPair(flow1SwitchPair, "src", "dst")] * 4
         flow1 << [getFlowHelper().randomFlow(flow1SwitchPair)] * 4
@@ -248,12 +254,13 @@ class SwapEndpointSpec extends BaseSpecification {
     }
 
     @Unroll
-    def "Able to swap #endpointPart for flows with different source and the same destination switches"() {
+    def "Able to swap #endpointsPart (#description) for two flows with different source and the same destination \
+switches"() {
         given: "Two flows with different source and the same destination switches"
         flowHelper.addFlow(flow1)
         flowHelper.addFlow(flow2)
 
-        when: "Try to swap #endpointPart for flows"
+        when: "Try to swap #endpointsPart for flows"
         def flow1Path = PathHelper.convert(northbound.getFlowPath(flow1.id))
         def flow2Path = PathHelper.convert(northbound.getFlowPath(flow2.id))
 
@@ -264,7 +271,7 @@ class SwapEndpointSpec extends BaseSpecification {
         def flow1Updated = northbound.getFlow(flow1.id)
         def flow2Updated = northbound.getFlow(flow2.id)
 
-        then: "#endpointPart.capitalize() are successfully swapped"
+        then: "#endpointsPart.capitalize() are successfully swapped"
         response.firstFlow.source == flow1Src
         response.firstFlow.destination == flow1Dst
         response.secondFlow.source == flow2Src
@@ -282,7 +289,8 @@ class SwapEndpointSpec extends BaseSpecification {
         [flow1, flow2].each { flowHelper.deleteFlow(it.id) }
 
         where:
-        endpointPart << ["vlans"] * 4 + ["ports"] * 4 + ["switches"] * 4
+        endpointsPart << ["vlans"] * 4 + ["ports"] * 4 + ["switches"] * 4
+        description << ["src <-> src", "dst <-> dst", "src <-> dst", "dst <-> src"] * 3
         flow1SwitchPair << [getTopologyHelper().getNotNeighboringSwitchPair()] * 12
         flow2SwitchPair << [getHalfDifferentNotNeighboringSwitchPair(flow1SwitchPair, "dst", "src")] * 12
         flow1 << [getFlowHelper().randomFlow(flow1SwitchPair)] * 12
@@ -319,7 +327,8 @@ class SwapEndpointSpec extends BaseSpecification {
     }
 
     @Unroll
-    def "Able to swap endpoints for flows with different source and the same destination switches"() {
+    def "Able to swap endpoints (#description) for two flows with different source and the same destination \
+switches"() {
         given: "Two flows with different source and the same destination switches"
         flowHelper.addFlow(flow1)
         flowHelper.addFlow(flow2)
@@ -353,6 +362,7 @@ class SwapEndpointSpec extends BaseSpecification {
         [flow1, flow2].each { flowHelper.deleteFlow(it.id) }
 
         where:
+        description << ["src <-> src", "dst <-> dst", "src <-> dst", "dst <-> src"]
         flow1SwitchPair << [getTopologyHelper().getNotNeighboringSwitchPair()] * 4
         flow2SwitchPair << [getHalfDifferentNotNeighboringSwitchPair(flow1SwitchPair, "dst", "src")] * 4
         flow1 << [getFlowHelper().randomFlow(flow1SwitchPair)] * 4
@@ -367,12 +377,12 @@ class SwapEndpointSpec extends BaseSpecification {
     }
 
     @Unroll
-    def "Able to swap #endpointPart for flows with different source and destination switches"() {
+    def "Able to swap #endpointsPart (#description) for two flows with different source and destination switches"() {
         given: "Two flows with different source and destination switches"
         flowHelper.addFlow(flow1)
         flowHelper.addFlow(flow2)
 
-        when: "Try to swap #endpointPart for flows"
+        when: "Try to swap #endpointsPart for flows"
         def flow1Path = PathHelper.convert(northbound.getFlowPath(flow1.id))
         def flow2Path = PathHelper.convert(northbound.getFlowPath(flow2.id))
 
@@ -383,7 +393,7 @@ class SwapEndpointSpec extends BaseSpecification {
         def flow1Updated = northbound.getFlow(flow1.id)
         def flow2Updated = northbound.getFlow(flow2.id)
 
-        then: "#endpointPart.capitalize() are successfully swapped"
+        then: "#endpointsPart.capitalize() are successfully swapped"
         response.firstFlow.source == flow1Src
         response.firstFlow.destination == flow1Dst
         response.secondFlow.source == flow2Src
@@ -401,7 +411,8 @@ class SwapEndpointSpec extends BaseSpecification {
         [flow1, flow2].each { flowHelper.deleteFlow(it.id) }
 
         where:
-        endpointPart << ["vlans"] * 4 + ["ports"] * 4 + ["switches"] * 4
+        endpointsPart << ["vlans"] * 4 + ["ports"] * 4 + ["switches"] * 4
+        description << ["src <-> src", "dst <-> dst", "src <-> dst", "dst <-> src"] * 3
         flow1SwitchPair << [getTopologyHelper().getNotNeighboringSwitchPair()] * 12
         flow2SwitchPair << [getDifferentNotNeighboringSwitchPair(flow1SwitchPair)] * 12
         flow1 << [getFlowHelper().randomFlow(flow1SwitchPair)] * 12
@@ -438,7 +449,7 @@ class SwapEndpointSpec extends BaseSpecification {
     }
 
     @Unroll
-    def "Able to swap endpoints for flows with different source and destination switches"() {
+    def "Able to swap endpoints (#description) for two flows with different source and destination switches"() {
         given: "Two flows with different source and destination switches"
         flowHelper.addFlow(flow1)
         flowHelper.addFlow(flow2)
@@ -472,6 +483,7 @@ class SwapEndpointSpec extends BaseSpecification {
         [flow1, flow2].each { flowHelper.deleteFlow(it.id) }
 
         where:
+        description << ["src <-> src", "dst <-> dst", "src <-> dst", "dst <-> src"]
         flow1SwitchPair << [getTopologyHelper().getNotNeighboringSwitchPair()] * 4
         flow2SwitchPair << [getDifferentNotNeighboringSwitchPair(flow1SwitchPair)] * 4
         flow1 << [getFlowHelper().randomFlow(flow1SwitchPair)] * 4
