@@ -3,7 +3,7 @@
 # Changelog
 ## v1.19.0 (22/05/2019)
 ### Features:
--  [#2325](https://github.com/telstra/open-kilda/pull/2325) Use OF groups for discovery process (Issues:  [#580](https://github.com/telstra/open-kilda/issues/580) [**feature**] )
+-  #2325 Use OF groups for discovery process (Issues:  #580) [**feature**] )
 -  [#2320](https://github.com/telstra/open-kilda/pull/2320) Adding feature to display meter stats graph [**area/gui**] (Issues:  [#2025](https://github.com/telstra/open-kilda/issues/2025) [**area/gui**][**feature**] )
 -  [#2155](https://github.com/telstra/open-kilda/pull/2155) Protected paths implementation [**area/api**]  (Issues:  [#1232](https://github.com/telstra/open-kilda/issues/1232) [**area/arch**][**feature**][**priority/2-high**] )
 -  [#2217](https://github.com/telstra/open-kilda/pull/2217) Accomplish BFD session management (Issues:  [#1487](https://github.com/telstra/open-kilda/issues/1487) [**epic/BFD**] )
